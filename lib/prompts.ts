@@ -49,3 +49,31 @@ export type ScoreResult = {
   score: number;
   reason: string;
 };
+
+// ── Outreach sequence (max_tokens 1500) ──────────────────────────────────
+export type SequenceMessage = { label: string; subject?: string; body: string };
+export type SequencePayload = {
+  emails: SequenceMessage[]; // 5: Initial, Follow-Up 1-3, Breakup
+  sms: SequenceMessage[]; // 2
+  linkedin: SequenceMessage[]; // 2
+};
+
+export function sequencePrompt(lead: Lead, settings: AppSettings): string {
+  const name = lead.owner || "there";
+  return `Write a complete cold outreach campaign for TaskBuildAI selling its AI employees (AI receptionist + lead qualification + 24/7 scheduling + instant SMS follow-up) to a home-service business. The single most important angle: missed calls = lost jobs. When the owner is on a roof, under a sink, or driving between jobs, every missed call is a customer who calls the next company instead. TaskBuildAI answers every call and books the job 24/7.
+
+${mode(settings)}
+
+Recipient:
+${leadFacts(lead)}
+
+Every message's only goal: get them to book a 15-minute demo. Personalize using their company name ("${lead.company}"), contact first name ("${name}"), their trade ("${lead.industry}"), and city${lead.city ? ` ("${lead.city}")` : ""}. Be specific to ${lead.industry}, not generic. Warm, direct, founder-to-owner tone. No fluff, no jargon. Short.
+
+Produce exactly:
+- 5 emails: labels "Initial", "Follow-Up 1", "Follow-Up 2", "Follow-Up 3", "Breakup". Each with a subject and a body. Emails escalate value then bow out politely on the breakup.
+- 2 SMS messages (label "SMS 1", "SMS 2"): under 160 characters each, no subject.
+- 2 LinkedIn messages (label "LinkedIn 1", "LinkedIn 2"): a connection note and a follow-up, no subject.
+
+Respond with ONLY this JSON shape:
+{"emails":[{"label":"Initial","subject":"...","body":"..."}, ...5 total],"sms":[{"label":"SMS 1","body":"..."},{"label":"SMS 2","body":"..."}],"linkedin":[{"label":"LinkedIn 1","body":"..."},{"label":"LinkedIn 2","body":"..."}]}`;
+}

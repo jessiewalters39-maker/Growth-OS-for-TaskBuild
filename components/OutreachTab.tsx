@@ -1,16 +1,171 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { Lead } from "@/lib/schema";
+import type { SequenceMessage, SequencePayload } from "@/lib/prompts";
+import { Btn, Tag } from "./ui";
+import { CopyButton } from "./CopyButton";
 
-// Placeholder for M1. The Outreach Engine (AI sequence generation, copy
-// buttons, mailto/sms links) is built in M2 and replaces this component.
+// Strip a phone number down to a tel/sms-safe form.
+function dialable(phone: string | null): string | null {
+  if (!phone) return null;
+  const cleaned = phone.replace(/[^\d+]/g, "");
+  return cleaned.length >= 7 ? cleaned : null;
+}
+
 export function OutreachTab({ lead }: { lead: Lead }) {
-  void lead;
+  const [payload, setPayload] = useState<SequencePayload | null>(null);
+  const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState("");
+
+  // Load the latest saved sequence when the tab opens.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoading(true);
+      const res = await fetch(`/api/leads/${lead.id}/sequence`);
+      if (active && res.ok) {
+        const data = await res.json();
+        setPayload(data.payload);
+        setCreatedAt(data.createdAt);
+      }
+      if (active) setLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [lead.id]);
+
+  async function generate() {
+    setGenerating(true);
+    setError("");
+    const res = await fetch(`/api/leads/${lead.id}/sequence`, { method: "POST" });
+    setGenerating(false);
+    if (res.ok) {
+      const data = await res.json();
+      setPayload(data.payload);
+      setCreatedAt(data.createdAt);
+    } else {
+      setError("Generation failed — check ANTHROPIC_API_KEY");
+    }
+  }
+
+  if (loading) return <div className="text-sm text-muted">Loading…</div>;
+
   return (
-    <div className="text-sm text-muted">
-      The Outreach Engine is built in milestone M2. It will generate a
-      personalized 9-message campaign (5 emails, 2 SMS, 2 LinkedIn) here, each
-      with copy buttons and quick-send links.
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted">
+          {payload
+            ? `9-message campaign${createdAt ? ` · ${new Date(createdAt).toLocaleDateString()}` : ""}`
+            : "No sequence yet"}
+        </div>
+        <Btn size="sm" onClick={generate} disabled={generating}>
+          {generating ? "Generating…" : payload ? "Regenerate" : "Generate sequence"}
+        </Btn>
+      </div>
+      {error && <div className="text-sm text-hot">{error}</div>}
+
+      {!payload && !generating && (
+        <p className="text-sm text-muted">
+          One click generates a personalized campaign — 5 emails, 2 SMS, and 2
+          LinkedIn messages — all aimed at booking a 15-minute demo. You send
+          them manually with the copy buttons and quick links below.
+        </p>
+      )}
+
+      {payload && (
+        <div className="space-y-5">
+          <Section title="Emails">
+            {payload.emails?.map((m, i) => (
+              <MessageCard key={i} m={m} channel="email" lead={lead} />
+            ))}
+          </Section>
+          <Section title="SMS">
+            {payload.sms?.map((m, i) => (
+              <MessageCard key={i} m={m} channel="sms" lead={lead} />
+            ))}
+          </Section>
+          <Section title="LinkedIn">
+            {payload.linkedin?.map((m, i) => (
+              <MessageCard key={i} m={m} channel="linkedin" lead={lead} />
+            ))}
+          </Section>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-muted">
+        {title}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MessageCard({
+  m,
+  channel,
+  lead,
+}: {
+  m: SequenceMessage;
+  channel: "email" | "sms" | "linkedin";
+  lead: Lead;
+}) {
+  const phone = dialable(lead.phone);
+  const mailto =
+    channel === "email" && lead.email
+      ? `mailto:${lead.email}?subject=${encodeURIComponent(m.subject ?? "")}&body=${encodeURIComponent(m.body)}`
+      : null;
+  const smsHref =
+    channel === "sms" && phone
+      ? `sms:${phone}?body=${encodeURIComponent(m.body)}`
+      : null;
+
+  // For email copy, include the subject line so a paste carries both.
+  const copyText = m.subject ? `Subject: ${m.subject}\n\n${m.body}` : m.body;
+
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 p-3">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <Tag tone="accent">{m.label}</Tag>
+        <div className="flex items-center gap-1.5">
+          {mailto && (
+            <a
+              href={mailto}
+              className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent-2"
+            >
+              Email
+            </a>
+          )}
+          {smsHref && (
+            <a
+              href={smsHref}
+              className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent-2"
+            >
+              Text
+            </a>
+          )}
+          <CopyButton text={copyText} />
+        </div>
+      </div>
+      {m.subject && (
+        <div className="mb-1 text-sm font-medium">{m.subject}</div>
+      )}
+      <div className="whitespace-pre-wrap text-sm text-muted">{m.body}</div>
     </div>
   );
 }
