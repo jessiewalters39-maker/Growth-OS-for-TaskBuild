@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { leads } from "./schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, notInArray, sql } from "drizzle-orm";
 import type { Lead } from "./schema";
 
 // Email-based matching is the v1 dedupe/linking strategy. No fuzzy matching.
@@ -45,4 +45,29 @@ export async function findExistingLead(
     )
     .limit(1);
   return byCompanyCity.length ? byCompanyCity[0] : null;
+}
+
+// ── Status auto-promotion (run during sync) ──────────────────────────────
+// Rules: a lead matched to an accepted booking → demo_booked (never downgrade
+// from demo_booked or customer); a lead matched to an active/trialing Stripe
+// subscription → customer.
+
+export async function promoteToDemoBooked(leadId: number): Promise<void> {
+  await db
+    .update(leads)
+    .set({ status: "demo_booked", updatedAt: new Date() })
+    .where(
+      and(
+        eq(leads.id, leadId),
+        // never overwrite a further-along stage
+        notInArray(leads.status, ["demo_booked", "customer"]),
+      ),
+    );
+}
+
+export async function promoteToCustomer(leadId: number): Promise<void> {
+  await db
+    .update(leads)
+    .set({ status: "customer", updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), ne(leads.status, "customer")));
 }

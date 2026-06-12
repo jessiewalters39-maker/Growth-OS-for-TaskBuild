@@ -1,10 +1,26 @@
 import { headers } from "next/headers";
 import { Card, Tag } from "@/components/ui";
 import { CopyButton } from "@/components/CopyButton";
-import { getAppSettings } from "@/lib/settings";
+import { getAppSettings, getSetting } from "@/lib/settings";
+
+type SyncInfo = { at?: string; upserted?: number; matched?: number } | null;
+
+function ago(iso?: string): string {
+  if (!iso) return "never";
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
 export default async function SettingsPage() {
   const { industry, location } = await getAppSettings();
+  const [lastCal, lastStripe] = await Promise.all([
+    getSetting<SyncInfo>("last_cal_sync", null),
+    getSetting<SyncInfo>("last_stripe_sync", null),
+  ]);
 
   // Build the absolute webhook URL from the incoming request.
   const h = await headers();
@@ -85,10 +101,59 @@ export default async function SettingsPage() {
         </p>
       </Card>
 
-      <Card className="text-sm text-muted">
-        Cal.com and Stripe connection status appears here once the funnel sync
-        (milestone M3) is wired up.
+      <Card>
+        <h2 className="mb-3 font-medium">Integrations</h2>
+        <div className="space-y-2">
+          <SyncRow
+            name="Cal.com"
+            env="CAL_API_KEY"
+            info={lastCal}
+            agoText={ago(lastCal?.at)}
+          />
+          <SyncRow
+            name="Stripe"
+            env="STRIPE_SECRET_KEY"
+            info={lastStripe}
+            agoText={ago(lastStripe?.at)}
+          />
+        </div>
+        <p className="mt-3 text-xs text-muted">
+          Synced once daily by the cron at <code className="text-fg">/api/jobs/daily</code>.
+          Use a <strong>restricted, read-only</strong> Stripe key — this app never
+          writes to Stripe.
+        </p>
       </Card>
+    </div>
+  );
+}
+
+function SyncRow({
+  name,
+  env,
+  info,
+  agoText,
+}: {
+  name: string;
+  env: string;
+  info: { at?: string; upserted?: number; matched?: number } | null;
+  agoText: string;
+}) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-line bg-surface-2 px-3 py-2">
+      <div>
+        <div className="text-sm font-medium">{name}</div>
+        <div className="text-xs text-muted">{env}</div>
+      </div>
+      <div className="text-right">
+        <Tag tone={info?.at ? "good" : "default"}>
+          {info?.at ? `synced ${agoText}` : "not synced"}
+        </Tag>
+        {info?.at && (
+          <div className="mt-1 text-xs text-muted">
+            {info.upserted ?? 0} records · {info.matched ?? 0} matched
+          </div>
+        )}
+      </div>
     </div>
   );
 }
