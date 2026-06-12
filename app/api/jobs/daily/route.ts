@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { syncCalBookings } from "@/lib/cal";
 import { syncStripe } from "@/lib/stripe";
 import { writeDailyMetrics } from "@/lib/metrics";
+import { generateWeeklyCmo } from "@/lib/cmo";
 import { setSetting } from "@/lib/settings";
 
 // GET /api/jobs/daily — the single daily cron. Protected by CRON_SECRET
@@ -42,11 +43,19 @@ export async function GET(req: Request) {
     summary.metrics = { error: String(e) };
   }
 
-  // (4) Weekly CMO report — wired up in milestone M4.
+  // (4) Weekly CMO report — Mondays (or ?force=cmo), from the data just synced.
   const isMonday = new Date().getUTCDay() === 1;
   const forceCmo = new URL(req.url).searchParams.get("force") === "cmo";
-  summary.cmo =
-    isMonday || forceCmo ? { skipped: "CMO generation lands in M4" } : { skipped: "not Monday" };
+  if (isMonday || forceCmo) {
+    try {
+      const report = await generateWeeklyCmo();
+      summary.cmo = { generated: true, weekOf: report.weekOf, id: report.id };
+    } catch (e) {
+      summary.cmo = { error: String(e) };
+    }
+  } else {
+    summary.cmo = { skipped: "not Monday" };
+  }
 
   return NextResponse.json(summary);
 }

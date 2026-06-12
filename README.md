@@ -95,7 +95,13 @@ proxy.ts                 # auth gate (Next 16 "proxy", formerly middleware)
 ## Milestones
 
 - **M0** — skeleton on the internet (auth, shell, schema) ✅
-- **M1** — Lead Center + ingestion (CRUD, CSV, webhook, AI scoring)
-- **M2** — Outreach Engine (AI sequences, copy buttons)
-- **M3** — real funnel (Cal.com + Stripe sync, cron, dashboard)
-- **M4** — AI CMO (weekly report)
+- **M1** — Lead Center + ingestion (CRUD, CSV, webhook, AI scoring) ✅
+- **M2** — Outreach Engine (AI sequences, copy buttons) ✅
+- **M3** — real funnel (Cal.com + Stripe sync, cron, dashboard) ✅
+- **M4** — AI CMO (weekly report) ✅
+
+All code is built and the production build + type-check pass. Live end-to-end
+verification (real webhook → scored lead, a booked demo + active subscription
+on the dashboard, a CMO report citing real numbers) happens once you provide
+`DATABASE_URL`, `ANTHROPIC_API_KEY`, `CAL_API_KEY`, and `STRIPE_SECRET_KEY` and
+run the daily cron (or hit `/api/jobs/daily?force=cmo` with the `CRON_SECRET`).

@@ -58,6 +58,42 @@ export type SequencePayload = {
   linkedin: SequenceMessage[]; // 2
 };
 
+// ── Weekly CMO report (max_tokens 2000) ──────────────────────────────────
+export type CmoData = {
+  metrics: Array<Record<string, unknown>>; // last 4 daily snapshots
+  leadsBySource: Array<{ source: string; total: number; demos: number; customers: number }>;
+  bookings: { accepted: number; upcoming: number; noShows: number; cancelled: number };
+  stripe: { active: number; trialing: number; pastDue: number; canceled: number; mrrCents: number };
+  topHotLeads: Array<{ company: string; industry: string; city: string | null; tier: string | null; score: number | null }>;
+};
+
+export type CmoPayload = {
+  headline: string;
+  worked: string[];
+  failed: string[];
+  demosDriver: string;
+  customersDriver: string;
+  nextIndustry: { industry: string; why: string };
+  nextMarket: { location: string; why: string };
+  actions: string[]; // 5
+};
+
+export function cmoPrompt(data: CmoData, settings: AppSettings): string {
+  return `You are the AI CMO for TaskBuildAI, which sells AI employees (AI receptionist, lead qualification, 24/7 scheduling, SMS follow-up) to home-service businesses. The founder's sole goal right now is the first 50 paying customers.
+
+${mode(settings)}
+
+You are given ONLY the real data below. Base every claim strictly on it. NEVER invent metrics, numbers, or trends. If a dataset needed for a recommendation is empty or zero, say so plainly and make the recommendation "populate that dataset" (e.g. "no demos booked yet — focus on booking the first demo"). MRR figures are in cents.
+
+DATA (JSON):
+${JSON.stringify(data, null, 2)}
+
+Write a sharp weekly executive report. Be concrete and reference the actual numbers above. Respond with ONLY this JSON shape:
+{"headline":"<one punchy sentence on the state of growth>","worked":["<what is working, grounded in the data>", ...],"failed":["<what is not working or is empty>", ...],"demosDriver":"<which source/channel actually produced demos, per the data>","customersDriver":"<what actually produced paying customers, per the data>","nextIndustry":{"industry":"<one home-service vertical to target next>","why":"<reason grounded in the data or stated as a hypothesis to test>"},"nextMarket":{"location":"<one geographic market to target next>","why":"<reason>"},"actions":["<action 1>","<action 2>","<action 3>","<action 4>","<action 5>"]}
+
+"actions" must be exactly 5 prioritized, specific things to do in the next 7 days to move toward 50 customers.`;
+}
+
 export function sequencePrompt(lead: Lead, settings: AppSettings): string {
   const name = lead.owner || "there";
   return `Write a complete cold outreach campaign for TaskBuildAI selling its AI employees (AI receptionist + lead qualification + 24/7 scheduling + instant SMS follow-up) to a home-service business. The single most important angle: missed calls = lost jobs. When the owner is on a roof, under a sink, or driving between jobs, every missed call is a customer who calls the next company instead. TaskBuildAI answers every call and books the job 24/7.
