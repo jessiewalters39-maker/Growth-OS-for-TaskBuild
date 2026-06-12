@@ -4,6 +4,7 @@ import { syncStripe } from "@/lib/stripe";
 import { writeDailyMetrics } from "@/lib/metrics";
 import { generateWeeklyCmo } from "@/lib/cmo";
 import { setSetting } from "@/lib/settings";
+import { retry } from "@/lib/retry";
 
 // GET /api/jobs/daily — the single daily cron. Protected by CRON_SECRET
 // (Authorization: Bearer <secret>). Each step is isolated in try/catch so one
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
 
   // (1) Cal.com bookings → demos
   try {
-    const cal = await syncCalBookings();
+    const cal = await retry(syncCalBookings);
     summary.cal = cal;
     await setSetting("last_cal_sync", { at: ranAt, ...cal });
   } catch (e) {
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
 
   // (2) Stripe subscriptions → customers + MRR
   try {
-    const stripe = await syncStripe();
+    const stripe = await retry(syncStripe);
     summary.stripe = stripe;
     await setSetting("last_stripe_sync", { at: ranAt, ...stripe });
   } catch (e) {
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
 
   // (3) Daily metrics snapshot
   try {
-    summary.metrics = await writeDailyMetrics();
+    summary.metrics = await retry(writeDailyMetrics);
   } catch (e) {
     summary.metrics = { error: String(e) };
   }

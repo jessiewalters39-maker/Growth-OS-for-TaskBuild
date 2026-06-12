@@ -11,6 +11,9 @@ import { normEmail, promoteToDemoBooked } from "./match";
 const CAL_BASE = "https://api.cal.com/v2";
 const CAL_API_VERSION = "2024-08-13";
 const FOURTEEN_DAYS = 14 * 24 * 60 * 60 * 1000;
+// Cal.com sits behind Cloudflare, which 403-blocks requests with the default
+// Node fetch User-Agent. A real UA is required or the call fails outright.
+const USER_AGENT = "TaskBuildAI-GrowthOS/1.0";
 
 export type CalSyncResult = {
   fetched: number;
@@ -46,7 +49,11 @@ export async function syncCalBookings(): Promise<CalSyncResult> {
   if (!key) throw new Error("CAL_API_KEY not set");
 
   const res = await fetch(`${CAL_BASE}/bookings?take=100&sortStart=desc`, {
-    headers: { Authorization: `Bearer ${key}`, "cal-api-version": CAL_API_VERSION },
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "cal-api-version": CAL_API_VERSION,
+      "User-Agent": USER_AGENT,
+    },
     cache: "no-store",
   });
   if (!res.ok) {
