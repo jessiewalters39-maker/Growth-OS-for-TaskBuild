@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* TaskBuildAI Growth OS — dark, deep-navy surfaces with a cobalt accent.
+   Tailwind v4 reads these @theme tokens to generate utilities like
+   bg-surface, text-accent, border-line, etc. */
+@theme {
+  --color-bg: #070b16;
+  --color-surface: #0f1626;
+  --color-surface-2: #161f33;
+  --color-line: #1e2840;
+  --color-line-2: #2a3754;
+  --color-fg: #e7ecf7;
+  --color-muted: #8b97b3;
+  --color-accent: #4f7cff;
+  --color-accent-2: #6f93ff;
+  --color-hot: #ff5c72;
+  --color-warm: #ffb454;
+  --color-cold: #5bb6ff;
+  --color-good: #36d399;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin custom scrollbars to match the dark surfaces. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-2) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line-2);
+  border-radius: 8px;
 }
