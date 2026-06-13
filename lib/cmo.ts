@@ -1,9 +1,49 @@
 import { db } from "./db";
-import { bookings, cmoReports, customers, leads, metricsDaily } from "./schema";
+import {
+  bookings,
+  cmoReports,
+  customers,
+  leads,
+  metricsDaily,
+  searchConsoleDaily,
+} from "./schema";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { askJson } from "./ai";
 import { cmoPrompt, type CmoData, type CmoPayload } from "./prompts";
 import { getAppSettings } from "./settings";
+import type { GscTopRow } from "./gsc";
+import type { SearchConsoleDaily } from "./schema";
+
+// GSC stores CTR as basis points and position x10 to stay integer; the report
+// wants human units. ctr -> percent (1 decimal), position -> rank (1 decimal).
+function organicSnapshot(row: SearchConsoleDaily | undefined) {
+  if (!row) return null;
+  return {
+    date: row.date,
+    clicks: row.clicks,
+    impressions: row.impressions,
+    ctr: Math.round(row.ctrBps / 10) / 10,
+    position: Math.round(row.positionX10) / 10,
+  };
+}
+
+function topQueries(row: SearchConsoleDaily | undefined) {
+  return ((row?.topQueries as GscTopRow[] | null) ?? []).map((r) => ({
+    query: r.key,
+    clicks: r.clicks,
+    impressions: r.impressions,
+    position: Math.round(r.positionX10) / 10,
+  }));
+}
+
+function topPages(row: SearchConsoleDaily | undefined) {
+  return ((row?.topPages as GscTopRow[] | null) ?? []).map((r) => ({
+    page: r.key,
+    clicks: r.clicks,
+    impressions: r.impressions,
+    position: Math.round(r.positionX10) / 10,
+  }));
+}
 
 // The Monday (UTC) of the week containing `d`, as YYYY-MM-DD.
 function mondayOf(d: Date): string {
@@ -17,7 +57,7 @@ function mondayOf(d: Date): string {
 // Gather ONLY real aggregates for the report — never synthetic data.
 export async function gatherCmoData(): Promise<CmoData> {
   const ACTIVE = ["active", "trialing"];
-  const [metrics, leadsBySource, bk, st, topHotLeads] = await Promise.all([
+  const [metrics, leadsBySource, bk, st, topHotLeads, organicRows] = await Promise.all([
     db
       .select()
       .from(metricsDaily)
@@ -62,7 +102,22 @@ export async function gatherCmoData(): Promise<CmoData> {
       .where(inArray(leads.tier, ["Hot"]))
       .orderBy(desc(leads.score))
       .limit(5),
+    db
+      .select()
+      .from(searchConsoleDaily)
+      .orderBy(desc(searchConsoleDaily.date))
+      .limit(2),
   ]);
+
+  const [current, previous] = organicRows;
+  const organic = current
+    ? {
+        current: organicSnapshot(current),
+        previous: organicSnapshot(previous),
+        topQueries: topQueries(current),
+        topPages: topPages(current),
+      }
+    : null;
 
   return {
     metrics,
@@ -70,6 +125,7 @@ export async function gatherCmoData(): Promise<CmoData> {
     bookings: bk[0] ?? { accepted: 0, upcoming: 0, noShows: 0, cancelled: 0 },
     stripe: st[0] ?? { active: 0, trialing: 0, pastDue: 0, canceled: 0, mrrCents: 0 },
     topHotLeads,
+    organic,
   };
 }
 

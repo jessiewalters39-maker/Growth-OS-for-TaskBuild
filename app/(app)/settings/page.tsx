@@ -4,6 +4,7 @@ import { CopyButton } from "@/components/CopyButton";
 import { getAppSettings, getSetting } from "@/lib/settings";
 
 type SyncInfo = { at?: string; upserted?: number; matched?: number } | null;
+type GscSyncInfo = { at?: string; clicks?: number; impressions?: number } | null;
 
 function ago(iso?: string): string {
   if (!iso) return "never";
@@ -17,9 +18,10 @@ function ago(iso?: string): string {
 
 export default async function SettingsPage() {
   const { industry, location } = await getAppSettings();
-  const [lastCal, lastStripe] = await Promise.all([
+  const [lastCal, lastStripe, lastGsc] = await Promise.all([
     getSetting<SyncInfo>("last_cal_sync", null),
     getSetting<SyncInfo>("last_stripe_sync", null),
+    getSetting<GscSyncInfo>("last_gsc_sync", null),
   ]);
 
   // Build the absolute webhook URL from the incoming request.
@@ -95,9 +97,14 @@ export default async function SettingsPage() {
 
         <p className="mt-3 text-xs text-muted">
           Accepts JSON fields: company, owner, email, phone, source
-          (Website Form | Chat | SMS), landing_page, industry, city, state. At
-          least one of company or email is required. Leads are de-duplicated by
-          email.
+          (Website Form | Chat | SMS), landing_page, industry, city, state. For
+          channel attribution, also send the visitor&apos;s first-touch{" "}
+          <code className="text-fg">referrer</code>,{" "}
+          <code className="text-fg">utm_source</code>, and{" "}
+          <code className="text-fg">utm_medium</code> — leads are then bucketed
+          as Organic Search / Paid Search / Social / Referral in the CMO report.
+          At least one of company or email is required. Leads are de-duplicated
+          by email.
         </p>
       </Card>
 
@@ -116,6 +123,17 @@ export default async function SettingsPage() {
             info={lastStripe}
             agoText={ago(lastStripe?.at)}
           />
+          <SyncRow
+            name="Search Console"
+            env="GSC_CLIENT_ID"
+            info={lastGsc}
+            agoText={ago(lastGsc?.at)}
+            detail={
+              lastGsc?.at
+                ? `${lastGsc.clicks ?? 0} clicks · ${lastGsc.impressions ?? 0} impressions (7d)`
+                : undefined
+            }
+          />
         </div>
         <p className="mt-3 text-xs text-muted">
           Synced once daily by the cron at <code className="text-fg">/api/jobs/daily</code>.
@@ -132,11 +150,13 @@ function SyncRow({
   env,
   info,
   agoText,
+  detail,
 }: {
   name: string;
   env: string;
   info: { at?: string; upserted?: number; matched?: number } | null;
   agoText: string;
+  detail?: string;
 }) {
   return (
     <div className="flex items-center justify-between rounded-lg border border-line bg-surface-2 px-3 py-2">
@@ -150,7 +170,7 @@ function SyncRow({
         </Tag>
         {info?.at && (
           <div className="mt-1 text-xs text-muted">
-            {info.upserted ?? 0} records · {info.matched ?? 0} matched
+            {detail ?? `${info.upserted ?? 0} records · ${info.matched ?? 0} matched`}
           </div>
         )}
       </div>

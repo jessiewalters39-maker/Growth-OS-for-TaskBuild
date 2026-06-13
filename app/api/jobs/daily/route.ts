@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { syncCalBookings } from "@/lib/cal";
 import { syncStripe } from "@/lib/stripe";
+import { syncSearchConsole } from "@/lib/gsc";
 import { writeDailyMetrics } from "@/lib/metrics";
 import { generateWeeklyCmo } from "@/lib/cmo";
 import { setSetting } from "@/lib/settings";
@@ -37,14 +38,23 @@ export async function GET(req: Request) {
     summary.stripe = { error: String(e) };
   }
 
-  // (3) Daily metrics snapshot
+  // (3) Google Search Console → organic-search snapshot (SEO top-of-funnel)
+  try {
+    const gsc = await retry(syncSearchConsole);
+    summary.gsc = gsc;
+    await setSetting("last_gsc_sync", { at: ranAt, ...gsc });
+  } catch (e) {
+    summary.gsc = { error: String(e) };
+  }
+
+  // (4) Daily metrics snapshot
   try {
     summary.metrics = await retry(writeDailyMetrics);
   } catch (e) {
     summary.metrics = { error: String(e) };
   }
 
-  // (4) Weekly CMO report — Mondays (or ?force=cmo), from the data just synced.
+  // (5) Weekly CMO report — Mondays (or ?force=cmo), from the data just synced.
   const isMonday = new Date().getUTCDay() === 1;
   const forceCmo = new URL(req.url).searchParams.get("force") === "cmo";
   if (isMonday || forceCmo) {

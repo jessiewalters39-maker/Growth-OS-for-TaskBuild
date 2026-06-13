@@ -65,6 +65,15 @@ export type CmoData = {
   bookings: { accepted: number; upcoming: number; noShows: number; cancelled: number };
   stripe: { active: number; trialing: number; pastDue: number; canceled: number; mrrCents: number };
   topHotLeads: Array<{ company: string; industry: string; city: string | null; tier: string | null; score: number | null }>;
+  // Organic search (Google Search Console), the SEO top-of-funnel channel.
+  // ctr is a percentage (1.5 = 1.5%); position is average rank (lower is better).
+  // null until the GSC sync has run at least once.
+  organic: {
+    current: { date: string; clicks: number; impressions: number; ctr: number; position: number } | null;
+    previous: { date: string; clicks: number; impressions: number; ctr: number; position: number } | null;
+    topQueries: Array<{ query: string; clicks: number; impressions: number; position: number }>;
+    topPages: Array<{ page: string; clicks: number; impressions: number; position: number }>;
+  } | null;
 };
 
 export type CmoPayload = {
@@ -84,6 +93,8 @@ export function cmoPrompt(data: CmoData, settings: AppSettings): string {
 ${mode(settings)}
 
 You are given ONLY the real data below. Base every claim strictly on it. NEVER invent metrics, numbers, or trends. If a dataset needed for a recommendation is empty or zero, say so plainly and make the recommendation "populate that dataset" (e.g. "no demos booked yet — focus on booking the first demo"). MRR figures are in cents.
+
+"organic" is the SEO / Google Search channel — the top of the funnel. Treat it as a leading indicator, separate from "leadsBySource" (which is captured leads and their conversions). Read it like this: impressions = how often the site showed in search, clicks = visits earned, position = average rank (LOWER is better; 1 is the top), ctr = click-through %. Compare "current" vs "previous" for the week-over-week trend, and use "topQueries"/"topPages" to see what demand exists. Diagnose accordingly — e.g. rising impressions but ~0 clicks or a high position number means the site ranks but on later pages (needs better titles and backlink authority, not more pages); strong impressions on a query the site has no dedicated page for is a content gap. If "organic" is null or all zeros, say organic search isn't producing yet and recommend the foundational SEO move. When relevant, factor the organic trend into "worked"/"failed"/"actions".
 
 DATA (JSON):
 ${JSON.stringify(data, null, 2)}

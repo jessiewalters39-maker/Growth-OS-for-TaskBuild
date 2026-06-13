@@ -90,6 +90,25 @@ export const metricsDaily = pgTable("metrics_daily", {
   pastDue: integer("past_due"),
 });
 
+// ── search_console_daily: one organic-search snapshot per day ────────────
+// Filled by the daily cron from the Google Search Console API (last 7 days,
+// rolling). PK = date so re-running the cron the same day overwrites. Totals
+// cover the 7-day window ending on `date`; top* hold the leading rows for the
+// AI CMO report's organic-channel read. CTR and avg position are floats in the
+// GSC API; we store CTR as basis points (x10000) and position x10 as ints to
+// avoid a numeric column, mirroring the cents convention used for MRR.
+export const searchConsoleDaily = pgTable("search_console_daily", {
+  date: date("date").primaryKey(),
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  ctrBps: integer("ctr_bps").notNull().default(0), // clicks/impressions * 10000
+  positionX10: integer("position_x10").notNull().default(0), // avg position * 10
+  // topQueries / topPages: [{ key, clicks, impressions, ctrBps, positionX10 }]
+  topQueries: jsonb("top_queries"),
+  topPages: jsonb("top_pages"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
+});
+
 // ── cmo_reports: weekly AI executive report ──────────────────────────────
 export const cmoReports = pgTable("cmo_reports", {
   id: serial("id").primaryKey(),
@@ -102,7 +121,7 @@ export const cmoReports = pgTable("cmo_reports", {
 
 // ── settings: key/value config (industry, location, sync timestamps) ─────
 export const settings = pgTable("settings", {
-  key: text("key").primaryKey(), // 'industry' | 'location' | 'webhook_note' | 'last_cal_sync' | 'last_stripe_sync'
+  key: text("key").primaryKey(), // 'industry' | 'location' | 'webhook_note' | 'last_cal_sync' | 'last_stripe_sync' | 'last_gsc_sync'
   value: jsonb("value").notNull(),
 });
 
@@ -113,3 +132,4 @@ export type Booking = typeof bookings.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type MetricsDaily = typeof metricsDaily.$inferSelect;
 export type CmoReport = typeof cmoReports.$inferSelect;
+export type SearchConsoleDaily = typeof searchConsoleDaily.$inferSelect;

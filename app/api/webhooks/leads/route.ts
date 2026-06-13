@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { leads } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { findExistingLead, normEmail } from "@/lib/match";
+import { deriveChannel } from "@/lib/attribution";
 import { getAppSettings } from "@/lib/settings";
 import { askJson } from "@/lib/ai";
 import { scorePrompt, type ScoreResult } from "@/lib/prompts";
@@ -45,7 +46,7 @@ export async function POST(req: Request) {
     fillIfEmpty("phone", body.phone?.trim() || null);
     fillIfEmpty("city", body.city?.trim() || null);
     fillIfEmpty("state", body.state?.trim() || null);
-    fillIfEmpty("source", body.source?.trim() || null);
+    fillIfEmpty("source", deriveChannel(body));
     fillIfEmpty("landingPage", body.landing_page?.trim() || null);
     [lead] = await db
       .update(leads)
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
         city: body.city?.trim() || null,
         state: body.state?.trim() || null,
         industry: body.industry?.trim() || settings.industry,
-        source: body.source?.trim() || "Website Form",
+        source: deriveChannel(body) || "Website Form",
         landingPage: body.landing_page?.trim() || null,
         status: "new",
       })
