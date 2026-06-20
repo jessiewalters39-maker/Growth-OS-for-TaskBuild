@@ -51,7 +51,14 @@ export type ScoreResult = {
 };
 
 // ── Outreach sequence (max_tokens 1500) ──────────────────────────────────
-export type SequenceMessage = { label: string; subject?: string; body: string };
+export type SequenceMessage = {
+  label: string;
+  subject?: string;
+  body: string;
+  // Set when this email has been sent via /api/leads/[id]/send. Persisted back
+  // into the sequence payload so the Sent state survives reloads.
+  sentAt?: string;
+};
 export type SequencePayload = {
   emails: SequenceMessage[]; // 5: Initial, Follow-Up 1-3, Breakup
   sms: SequenceMessage[]; // 2

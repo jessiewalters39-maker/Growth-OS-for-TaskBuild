@@ -52,6 +52,29 @@ export function OutreachTab({ lead }: { lead: Lead }) {
     }
   }
 
+  // Send one email via Zoho, then reflect the sentAt stamp in local state.
+  async function sendEmail(
+    index: number,
+  ): Promise<{ ok: boolean; error?: string }> {
+    const res = await fetch(`/api/leads/${lead.id}/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setPayload((prev) => {
+        if (!prev) return prev;
+        const emails = prev.emails.map((m, i) =>
+          i === index ? { ...m, sentAt: data.sentAt } : m,
+        );
+        return { ...prev, emails };
+      });
+      return { ok: true };
+    }
+    return { ok: false, error: data.error || "Send failed" };
+  }
+
   if (loading) return <div className="text-sm text-muted">Loading…</div>;
 
   return (
@@ -71,8 +94,8 @@ export function OutreachTab({ lead }: { lead: Lead }) {
       {!payload && !generating && (
         <p className="text-sm text-muted">
           One click generates a personalized campaign — 5 emails, 2 SMS, and 2
-          LinkedIn messages — all aimed at booking a 15-minute demo. You send
-          them manually with the copy buttons and quick links below.
+          LinkedIn messages — all aimed at booking a 15-minute demo. Send the
+          emails straight from your mailbox; copy the SMS and LinkedIn touches.
         </p>
       )}
 
@@ -80,7 +103,14 @@ export function OutreachTab({ lead }: { lead: Lead }) {
         <div className="space-y-5">
           <Section title="Emails">
             {payload.emails?.map((m, i) => (
-              <MessageCard key={i} m={m} channel="email" lead={lead} />
+              <MessageCard
+                key={i}
+                m={m}
+                channel="email"
+                lead={lead}
+                index={i}
+                onSend={sendEmail}
+              />
             ))}
           </Section>
           <Section title="SMS">
@@ -120,16 +150,19 @@ function MessageCard({
   m,
   channel,
   lead,
+  index,
+  onSend,
 }: {
   m: SequenceMessage;
   channel: "email" | "sms" | "linkedin";
   lead: Lead;
+  index?: number;
+  onSend?: (index: number) => Promise<{ ok: boolean; error?: string }>;
 }) {
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+
   const phone = dialable(lead.phone);
-  const mailto =
-    channel === "email" && lead.email
-      ? `mailto:${lead.email}?subject=${encodeURIComponent(m.subject ?? "")}&body=${encodeURIComponent(m.body)}`
-      : null;
   const smsHref =
     channel === "sms" && phone
       ? `sms:${phone}?body=${encodeURIComponent(m.body)}`
@@ -138,19 +171,45 @@ function MessageCard({
   // For email copy, include the subject line so a paste carries both.
   const copyText = m.subject ? `Subject: ${m.subject}\n\n${m.body}` : m.body;
 
+  const canSend =
+    channel === "email" && onSend && index !== undefined && Boolean(lead.email);
+
+  async function handleSend() {
+    if (!onSend || index === undefined) return;
+    setSending(true);
+    setSendError("");
+    const res = await onSend(index);
+    setSending(false);
+    if (!res.ok) setSendError(res.error || "Send failed");
+  }
+
   return (
     <div className="rounded-lg border border-line bg-surface-2 p-3">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <Tag tone="accent">{m.label}</Tag>
         <div className="flex items-center gap-1.5">
-          {mailto && (
-            <a
-              href={mailto}
-              className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent-2"
-            >
-              Email
-            </a>
-          )}
+          {m.sentAt ? (
+            <Tag tone="good">
+              Sent · {new Date(m.sentAt).toLocaleDateString()}
+            </Tag>
+          ) : null}
+          {channel === "email" &&
+            (canSend ? (
+              <button
+                onClick={handleSend}
+                disabled={sending}
+                className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent-2 disabled:opacity-50"
+              >
+                {sending ? "Sending…" : m.sentAt ? "Resend" : "Send"}
+              </button>
+            ) : (
+              <span
+                className="cursor-not-allowed rounded-lg bg-surface px-2.5 py-1 text-xs text-muted"
+                title="This lead has no email address"
+              >
+                No email
+              </span>
+            ))}
           {smsHref && (
             <a
               href={smsHref}
@@ -166,6 +225,7 @@ function MessageCard({
         <div className="mb-1 text-sm font-medium">{m.subject}</div>
       )}
       <div className="whitespace-pre-wrap text-sm text-muted">{m.body}</div>
+      {sendError && <div className="mt-1.5 text-xs text-hot">{sendError}</div>}
     </div>
   );
 }
