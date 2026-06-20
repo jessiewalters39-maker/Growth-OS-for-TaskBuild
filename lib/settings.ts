@@ -16,8 +16,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   location: "",
   senderName: "Jessie",
   dailySendCap: 30,
-  bookingUrl: "",
-  websiteUrl: "https://www.taskbuildai.com",
+  bookingUrl: "https://cal.com/taskbuildai/automation-audit",
+  websiteUrl: "https://www.taskbuildai.com/",
 };
 
 // Read a single setting value, JSON-typed. Returns fallback on any failure
