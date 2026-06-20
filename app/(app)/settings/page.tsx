@@ -3,6 +3,7 @@ import { Card, Tag } from "@/components/ui";
 import { CopyButton } from "@/components/CopyButton";
 import { SenderNameForm } from "@/components/SenderNameForm";
 import { DailyCapForm } from "@/components/DailyCapForm";
+import { OutreachLinksForm } from "@/components/OutreachLinksForm";
 import { getAppSettings, getSetting } from "@/lib/settings";
 import { mailerConfigured } from "@/lib/mailer";
 
@@ -20,7 +21,8 @@ function ago(iso?: string): string {
 }
 
 export default async function SettingsPage() {
-  const { industry, location, senderName, dailySendCap } = await getAppSettings();
+  const { industry, location, senderName, dailySendCap, bookingUrl, websiteUrl } =
+    await getAppSettings();
   const mailerReady = mailerConfigured();
   const [lastCal, lastStripe, lastGsc] = await Promise.all([
     getSetting<SyncInfo>("last_cal_sync", null),
@@ -74,6 +76,19 @@ export default async function SettingsPage() {
           with. Pinning it here stops the AI from inventing different names.
         </p>
         <SenderNameForm initial={senderName} />
+      </Card>
+
+      <Card>
+        <div className="text-sm text-muted">Outreach links</div>
+        <p className="mt-2 text-sm text-muted">
+          Injected into every generated sequence. The <strong>booking link</strong>{" "}
+          becomes the call-to-action in each email; the <strong>website</strong> is
+          referenced once for credibility. Without a booking link, emails ask the
+          lead to reply instead — set yours so every campaign has a real CTA.
+        </p>
+        <div className="mt-3">
+          <OutreachLinksForm booking={bookingUrl} website={websiteUrl} />
+        </div>
       </Card>
 
       <Card>

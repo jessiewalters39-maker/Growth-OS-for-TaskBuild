@@ -114,6 +114,16 @@ Write a sharp weekly executive report. Be concrete and reference the actual numb
 
 export function sequencePrompt(lead: Lead, settings: AppSettings): string {
   const name = lead.owner || "there";
+  const linkLines = [
+    settings.bookingUrl
+      ? `Booking link: ${settings.bookingUrl} — use it as the explicit call-to-action in every email and in the LinkedIn follow-up (e.g. "grab a 15-min slot here: ${settings.bookingUrl}").`
+      : `No booking link is configured — the call-to-action must ask them to reply to set up a time. Do NOT invent a URL.`,
+    settings.websiteUrl
+      ? `Website: ${settings.websiteUrl} — reference it once where it reads naturally (e.g. the initial email or a sign-off) for credibility.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
   return `Write a complete cold outreach campaign for TaskBuildAI selling its AI employees (AI receptionist + lead qualification + 24/7 scheduling + instant SMS follow-up) to a home-service business. The single most important angle: missed calls = lost jobs. When the owner is on a roof, under a sink, or driving between jobs, every missed call is a customer who calls the next company instead. TaskBuildAI answers every call and books the job 24/7.
 
 ${mode(settings)}
@@ -124,6 +134,9 @@ ${leadFacts(lead)}
 Every message's only goal: get them to book a 15-minute demo. Personalize using their company name ("${lead.company}"), contact first name ("${name}"), their trade ("${lead.industry}"), and city${lead.city ? ` ("${lead.city}")` : ""}. Be specific to ${lead.industry}, not generic. Warm, direct, founder-to-owner tone. No fluff, no jargon. Short.
 
 Sender identity: every email and LinkedIn message is from "${settings.senderName}", the founder of TaskBuildAI. Sign off the emails as exactly "${settings.senderName}" (first name alone is fine) — NEVER invent, substitute, or vary the sender's name, and never use a placeholder like "[Your Name]". SMS messages need no sign-off.
+
+Links (use these EXACTLY as given — never invent, alter, shorten, or use placeholder URLs like "[link]"):
+${linkLines}
 
 Produce exactly:
 - 5 emails: labels "Initial", "Follow-Up 1", "Follow-Up 2", "Follow-Up 3", "Breakup". Each with a subject and a body. Emails escalate value then bow out politely on the breakup.
