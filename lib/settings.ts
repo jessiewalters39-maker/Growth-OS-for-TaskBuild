@@ -6,12 +6,14 @@ export type AppSettings = {
   industry: string;
   location: string;
   senderName: string;
+  dailySendCap: number;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   industry: "Roofing",
   location: "",
   senderName: "Jessie",
+  dailySendCap: 30,
 };
 
 // Read a single setting value, JSON-typed. Returns fallback on any failure
@@ -32,12 +34,13 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
 
 // Industry + location mode, injected into every AI prompt and the top bar.
 export async function getAppSettings(): Promise<AppSettings> {
-  const [industry, location, senderName] = await Promise.all([
+  const [industry, location, senderName, dailySendCap] = await Promise.all([
     getSetting<string>("industry", DEFAULT_SETTINGS.industry),
     getSetting<string>("location", DEFAULT_SETTINGS.location),
     getSetting<string>("sender_name", DEFAULT_SETTINGS.senderName),
+    getSetting<number>("daily_send_cap", DEFAULT_SETTINGS.dailySendCap),
   ]);
-  return { industry, location, senderName };
+  return { industry, location, senderName, dailySendCap };
 }
 
 export async function setSetting(key: string, value: unknown): Promise<void> {

@@ -5,6 +5,9 @@ import { desc, eq } from "drizzle-orm";
 import type { SequencePayload } from "@/lib/prompts";
 import { getAppSettings } from "@/lib/settings";
 import { mailerConfigured, sendOutreachEmail } from "@/lib/mailer";
+import { emailsSentSince } from "@/lib/sends";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // nodemailer needs Node's net/tls — never the edge runtime.
 export const runtime = "nodejs";
@@ -63,6 +66,24 @@ export async function POST(
   }
 
   const settings = await getAppSettings();
+
+  // Daily send cap — a soft guard so you can't accidentally over-send and get
+  // your Zoho mailbox throttled or your domain flagged. Counts emails sent in
+  // the last rolling 24h; blocks once the cap is hit.
+  const cap = settings.dailySendCap;
+  const sentLast24h = await emailsSentSince(new Date(Date.now() - DAY_MS));
+  if (sentLast24h >= cap) {
+    return NextResponse.json(
+      {
+        error: `Daily send cap reached — ${sentLast24h}/${cap} sent in the last 24h. Raise it in Settings or continue tomorrow.`,
+        count: sentLast24h,
+        cap,
+        remaining: 0,
+      },
+      { status: 429 },
+    );
+  }
+
   try {
     await sendOutreachEmail({
       to: lead.email,
@@ -85,5 +106,11 @@ export async function POST(
     .set({ payload })
     .where(eq(sequences.id, row.id));
 
-  return NextResponse.json({ sentAt });
+  const count = sentLast24h + 1;
+  return NextResponse.json({
+    sentAt,
+    count,
+    cap,
+    remaining: Math.max(0, cap - count),
+  });
 }
