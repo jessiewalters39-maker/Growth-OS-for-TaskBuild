@@ -1,7 +1,9 @@
 import { headers } from "next/headers";
 import { Card, Tag } from "@/components/ui";
 import { CopyButton } from "@/components/CopyButton";
+import { SenderNameForm } from "@/components/SenderNameForm";
 import { getAppSettings, getSetting } from "@/lib/settings";
+import { mailerConfigured } from "@/lib/mailer";
 
 type SyncInfo = { at?: string; upserted?: number; matched?: number } | null;
 type GscSyncInfo = { at?: string; clicks?: number; impressions?: number } | null;
@@ -17,7 +19,8 @@ function ago(iso?: string): string {
 }
 
 export default async function SettingsPage() {
-  const { industry, location } = await getAppSettings();
+  const { industry, location, senderName } = await getAppSettings();
+  const mailerReady = mailerConfigured();
   const [lastCal, lastStripe, lastGsc] = await Promise.all([
     getSetting<SyncInfo>("last_cal_sync", null),
     getSetting<SyncInfo>("last_stripe_sync", null),
@@ -61,6 +64,15 @@ export default async function SettingsPage() {
           injected into AI lead scoring, outreach sequences, and the weekly CMO
           report.
         </p>
+      </Card>
+
+      <Card>
+        <div className="text-sm text-muted">Sender identity</div>
+        <p className="mt-2 text-sm text-muted">
+          The name every generated outreach email and LinkedIn message is signed
+          with. Pinning it here stops the AI from inventing different names.
+        </p>
+        <SenderNameForm initial={senderName} />
       </Card>
 
       <Card>
@@ -139,6 +151,42 @@ export default async function SettingsPage() {
           Synced once daily by the cron at <code className="text-fg">/api/jobs/daily</code>.
           Use a <strong>restricted, read-only</strong> Stripe key — this app never
           writes to Stripe.
+        </p>
+      </Card>
+
+      <Card>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="font-medium">Email sending (Zoho SMTP)</h2>
+          <Tag tone={mailerReady ? "good" : "default"}>
+            {mailerReady ? "configured" : "not configured"}
+          </Tag>
+        </div>
+        <p className="text-sm text-muted">
+          Outreach emails send from your own Zoho mailbox, so they come from a
+          real inbox and replies land back in Zoho. Set these env vars:
+        </p>
+        <ul className="mt-2 space-y-1 text-sm text-muted">
+          <li>
+            <code className="text-fg">ZOHO_USER</code> — your mailbox, e.g.{" "}
+            <code className="text-fg">jessie@taskbuildai.com</code> (the From address)
+          </li>
+          <li>
+            <code className="text-fg">ZOHO_APP_PASSWORD</code> — a Zoho{" "}
+            <strong>app-specific</strong> password (Settings → Security → App Passwords)
+          </li>
+          <li>
+            <code className="text-fg">ZOHO_SMTP_HOST</code> — optional, defaults to{" "}
+            <code className="text-fg">smtp.zoho.com</code> (use the host for your data center)
+          </li>
+          <li>
+            <code className="text-fg">ZOHO_SMTP_PORT</code> — optional, defaults to{" "}
+            <code className="text-fg">465</code>
+          </li>
+        </ul>
+        <p className="mt-3 text-xs text-muted">
+          Emails sign off with the <strong>Sender identity</strong> name above.
+          Send them one at a time from a lead&apos;s Outreach tab — Zoho enforces
+          daily sending limits and polices bulk cold mail, so keep volume modest.
         </p>
       </Card>
     </div>

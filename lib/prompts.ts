@@ -51,7 +51,14 @@ export type ScoreResult = {
 };
 
 // ── Outreach sequence (max_tokens 1500) ──────────────────────────────────
-export type SequenceMessage = { label: string; subject?: string; body: string };
+export type SequenceMessage = {
+  label: string;
+  subject?: string;
+  body: string;
+  // Set when this email has been sent via /api/leads/[id]/send. Persisted back
+  // into the sequence payload so the Sent state survives reloads.
+  sentAt?: string;
+};
 export type SequencePayload = {
   emails: SequenceMessage[]; // 5: Initial, Follow-Up 1-3, Breakup
   sms: SequenceMessage[]; // 2
@@ -115,6 +122,8 @@ Recipient:
 ${leadFacts(lead)}
 
 Every message's only goal: get them to book a 15-minute demo. Personalize using their company name ("${lead.company}"), contact first name ("${name}"), their trade ("${lead.industry}"), and city${lead.city ? ` ("${lead.city}")` : ""}. Be specific to ${lead.industry}, not generic. Warm, direct, founder-to-owner tone. No fluff, no jargon. Short.
+
+Sender identity: every email and LinkedIn message is from "${settings.senderName}", the founder of TaskBuildAI. Sign off the emails as exactly "${settings.senderName}" (first name alone is fine) — NEVER invent, substitute, or vary the sender's name, and never use a placeholder like "[Your Name]". SMS messages need no sign-off.
 
 Produce exactly:
 - 5 emails: labels "Initial", "Follow-Up 1", "Follow-Up 2", "Follow-Up 3", "Breakup". Each with a subject and a body. Emails escalate value then bow out politely on the breakup.
