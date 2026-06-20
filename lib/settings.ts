@@ -5,11 +5,13 @@ import { eq } from "drizzle-orm";
 export type AppSettings = {
   industry: string;
   location: string;
+  senderName: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
   industry: "Roofing",
   location: "",
+  senderName: "Jessie",
 };
 
 // Read a single setting value, JSON-typed. Returns fallback on any failure
@@ -30,11 +32,12 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
 
 // Industry + location mode, injected into every AI prompt and the top bar.
 export async function getAppSettings(): Promise<AppSettings> {
-  const [industry, location] = await Promise.all([
+  const [industry, location, senderName] = await Promise.all([
     getSetting<string>("industry", DEFAULT_SETTINGS.industry),
     getSetting<string>("location", DEFAULT_SETTINGS.location),
+    getSetting<string>("sender_name", DEFAULT_SETTINGS.senderName),
   ]);
-  return { industry, location };
+  return { industry, location, senderName };
 }
 
 export async function setSetting(key: string, value: unknown): Promise<void> {

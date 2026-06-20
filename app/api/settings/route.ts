@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAppSettings, setSetting } from "@/lib/settings";
 
-// GET current industry/location mode; POST to update either (or both).
+// GET current industry/location/senderName mode; POST to update any of them.
 export async function GET() {
   return NextResponse.json(await getAppSettings());
 }
@@ -13,6 +13,8 @@ export async function POST(req: Request) {
     writes.push(setSetting("industry", body.industry));
   if (typeof body.location === "string")
     writes.push(setSetting("location", body.location));
+  if (typeof body.sender_name === "string")
+    writes.push(setSetting("sender_name", body.sender_name.trim() || "Jessie"));
   try {
     await Promise.all(writes);
   } catch {

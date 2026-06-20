@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { Card, Tag } from "@/components/ui";
 import { CopyButton } from "@/components/CopyButton";
+import { SenderNameForm } from "@/components/SenderNameForm";
 import { getAppSettings, getSetting } from "@/lib/settings";
 
 type SyncInfo = { at?: string; upserted?: number; matched?: number } | null;
@@ -17,7 +18,7 @@ function ago(iso?: string): string {
 }
 
 export default async function SettingsPage() {
-  const { industry, location } = await getAppSettings();
+  const { industry, location, senderName } = await getAppSettings();
   const [lastCal, lastStripe, lastGsc] = await Promise.all([
     getSetting<SyncInfo>("last_cal_sync", null),
     getSetting<SyncInfo>("last_stripe_sync", null),
@@ -61,6 +62,15 @@ export default async function SettingsPage() {
           injected into AI lead scoring, outreach sequences, and the weekly CMO
           report.
         </p>
+      </Card>
+
+      <Card>
+        <div className="text-sm text-muted">Sender identity</div>
+        <p className="mt-2 text-sm text-muted">
+          The name every generated outreach email and LinkedIn message is signed
+          with. Pinning it here stops the AI from inventing different names.
+        </p>
+        <SenderNameForm initial={senderName} />
       </Card>
 
       <Card>
