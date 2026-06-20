@@ -17,6 +17,10 @@ export async function POST(req: Request) {
     writes.push(setSetting("sender_name", body.sender_name.trim() || "Jessie"));
   if (typeof body.daily_send_cap === "number" && body.daily_send_cap > 0)
     writes.push(setSetting("daily_send_cap", Math.floor(body.daily_send_cap)));
+  if (typeof body.booking_url === "string")
+    writes.push(setSetting("booking_url", body.booking_url.trim()));
+  if (typeof body.website_url === "string")
+    writes.push(setSetting("website_url", body.website_url.trim()));
   try {
     await Promise.all(writes);
   } catch {
