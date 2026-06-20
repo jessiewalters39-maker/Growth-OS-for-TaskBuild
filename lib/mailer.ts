@@ -1,4 +1,20 @@
 import nodemailer from "nodemailer";
+import { resolve4 } from "node:dns/promises";
+
+// Resolve a host to an IPv4 via c-ares (resolve4), which sends DNS queries
+// directly and bypasses the OS getaddrinfo() — the call that some Windows VPNs
+// (notably NordVPN) lock up with "getaddrinfo EBUSY". Returns null on any
+// failure (or if the host is already an IP) so callers fall back to the
+// hostname. Harmless everywhere else, including production.
+async function resolveHostIp(host: string): Promise<string | null> {
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return null; // already an IP
+  try {
+    const ips = await resolve4(host);
+    return ips[0] ?? null;
+  } catch {
+    return null;
+  }
+}
 
 // Sends outreach email through the founder's own Zoho mailbox over SMTP, so
 // messages come from a real inbox (good deliverability) and replies land back in
@@ -33,11 +49,16 @@ export async function sendOutreachEmail(opts: {
   const host = process.env.ZOHO_SMTP_HOST || "smtp.zoho.com";
   const port = Number(process.env.ZOHO_SMTP_PORT || 465);
 
+  // Connect by resolved IP when possible (VPN getaddrinfo workaround), keeping
+  // the real hostname as the TLS servername so cert validation still passes.
+  const ip = await resolveHostIp(host);
+
   const transport = nodemailer.createTransport({
-    host,
+    host: ip ?? host,
     port,
     secure: port === 465, // 465 = implicit TLS; 587 upgrades via STARTTLS
     auth: { user, pass },
+    ...(ip ? { tls: { servername: host } } : {}),
   });
 
   await transport.sendMail({
