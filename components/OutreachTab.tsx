@@ -19,6 +19,9 @@ export function OutreachTab({ lead }: { lead: Lead }) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
+  const [quota, setQuota] = useState<{ remaining: number; cap: number } | null>(
+    null,
+  );
 
   // Load the latest saved sequence when the tab opens.
   useEffect(() => {
@@ -70,7 +73,14 @@ export function OutreachTab({ lead }: { lead: Lead }) {
         );
         return { ...prev, emails };
       });
+      if (typeof data.remaining === "number" && typeof data.cap === "number") {
+        setQuota({ remaining: data.remaining, cap: data.cap });
+      }
       return { ok: true };
+    }
+    // On a cap block (429) the body still carries cap/remaining — show it.
+    if (typeof data.remaining === "number" && typeof data.cap === "number") {
+      setQuota({ remaining: data.remaining, cap: data.cap });
     }
     return { ok: false, error: data.error || "Send failed" };
   }
@@ -84,6 +94,12 @@ export function OutreachTab({ lead }: { lead: Lead }) {
           {payload
             ? `9-message campaign${createdAt ? ` · ${new Date(createdAt).toLocaleDateString()}` : ""}`
             : "No sequence yet"}
+          {quota && (
+            <span className={quota.remaining === 0 ? "text-hot" : "text-muted"}>
+              {" · "}
+              {quota.remaining} of {quota.cap} sends left today
+            </span>
+          )}
         </div>
         <Btn size="sm" onClick={generate} disabled={generating}>
           {generating ? "Generating…" : payload ? "Regenerate" : "Generate sequence"}

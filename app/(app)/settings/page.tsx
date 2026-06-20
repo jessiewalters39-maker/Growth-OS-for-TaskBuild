@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { Card, Tag } from "@/components/ui";
 import { CopyButton } from "@/components/CopyButton";
 import { SenderNameForm } from "@/components/SenderNameForm";
+import { DailyCapForm } from "@/components/DailyCapForm";
 import { getAppSettings, getSetting } from "@/lib/settings";
 import { mailerConfigured } from "@/lib/mailer";
 
@@ -19,7 +20,7 @@ function ago(iso?: string): string {
 }
 
 export default async function SettingsPage() {
-  const { industry, location, senderName } = await getAppSettings();
+  const { industry, location, senderName, dailySendCap } = await getAppSettings();
   const mailerReady = mailerConfigured();
   const [lastCal, lastStripe, lastGsc] = await Promise.all([
     getSetting<SyncInfo>("last_cal_sync", null),
@@ -183,6 +184,15 @@ export default async function SettingsPage() {
             <code className="text-fg">465</code>
           </li>
         </ul>
+        <div className="mt-4 border-t border-line pt-3">
+          <div className="text-sm font-medium">Daily send cap</div>
+          <p className="mb-2 mt-1 text-xs text-muted">
+            The Outreach tab blocks sending once this many emails have gone out in
+            a rolling 24 hours — a guard against over-sending and getting your
+            inbox throttled. Start low (~20–30) and ramp up slowly.
+          </p>
+          <DailyCapForm initial={dailySendCap} />
+        </div>
         <p className="mt-3 text-xs text-muted">
           Emails sign off with the <strong>Sender identity</strong> name above.
           Send them one at a time from a lead&apos;s Outreach tab — Zoho enforces
