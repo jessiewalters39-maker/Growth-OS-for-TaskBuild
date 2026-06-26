@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Lead } from "@/lib/schema";
 import {
   INDUSTRIES,
@@ -46,6 +46,7 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showScrape, setShowScrape] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +82,9 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
         <div className="flex gap-2">
           <Btn variant="ghost" onClick={() => setShowImport(true)}>
             Import CSV
+          </Btn>
+          <Btn variant="ghost" onClick={() => setShowScrape(true)}>
+            Scrape leads
           </Btn>
           <Btn onClick={() => setShowAdd(true)}>+ Add lead</Btn>
         </div>
@@ -157,7 +161,14 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
                 onClick={() => setSelected(l)}
                 className="cursor-pointer transition-colors hover:bg-surface-2/60"
               >
-                <Td className="font-medium">{l.company}</Td>
+                <Td className="font-medium">
+                  {l.company}
+                  {l.hasChatbot === false && (
+                    <Tag tone="hot" className="ml-2 align-middle text-[10px]">
+                      No chatbot
+                    </Tag>
+                  )}
+                </Td>
                 <Td className="text-muted">
                   {l.owner || l.email || l.phone || "—"}
                 </Td>
@@ -213,6 +224,13 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
       {showImport && (
         <ImportModal
           onClose={() => setShowImport(false)}
+          onDone={() => load()}
+        />
+      )}
+      {showScrape && (
+        <ScrapeModal
+          defaultIndustry={defaultIndustry}
+          onClose={() => setShowScrape(false)}
           onDone={() => load()}
         />
       )}
@@ -411,6 +429,231 @@ function ImportModal({
         </Btn>
         <Btn onClick={submit} disabled={busy || !csv.trim()}>
           {busy ? "Importing…" : "Import"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Scrape leads modal ────────────────────────────────────────────────────
+// Drives the timeout-proof flow so it works on a Vercel Hobby (60s) function:
+//   start  → queue the Apify run (fast)
+//   poll   → wait for the run, then bulk-insert raw leads (fast)
+//   enrich → process leads in small chunks (chatbot + email + AI score), the
+//            browser looping one chunk at a time so no request runs long.
+const CHUNK = 6;
+const POLL_MS = 5000;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+type Phase = "form" | "scraping" | "enriching" | "done" | "error";
+
+function ScrapeModal({
+  defaultIndustry,
+  onClose,
+  onDone,
+}: {
+  defaultIndustry: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [niche, setNiche] = useState(defaultIndustry);
+  const [location, setLocation] = useState("");
+  const [limit, setLimit] = useState(20);
+  const [phase, setPhase] = useState<Phase>("form");
+  const [error, setError] = useState("");
+  // progress + tallies
+  const [total, setTotal] = useState(0);
+  const [doneCount, setDoneCount] = useState(0);
+  const [skipped, setSkipped] = useState(0);
+  const tally = useRef({ noBot: 0, yesBot: 0, unknown: 0 });
+  const cancelled = useRef(false);
+
+  useEffect(() => {
+    // Stop the loops if the modal unmounts mid-run. Reset on (re)mount so a
+    // StrictMode mount→unmount→remount cycle doesn't leave the flag stuck true.
+    cancelled.current = false;
+    return () => {
+      cancelled.current = true;
+    };
+  }, []);
+
+  async function run() {
+    cancelled.current = false; // fresh run — never blocked by a stale cancel
+    setError("");
+    setDoneCount(0);
+    setTotal(0);
+    setSkipped(0);
+    tally.current = { noBot: 0, yesBot: 0, unknown: 0 };
+    setPhase("scraping");
+
+    // 1) start
+    let runId: string;
+    try {
+      const res = await fetch("/api/leads/scrape/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ niche, location, limit }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "could not start scrape");
+      runId = data.runId;
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e));
+      setPhase("error");
+      return;
+    }
+
+    // 2) poll until the run finishes and raw leads are inserted
+    let leadIds: number[] = [];
+    while (!cancelled.current) {
+      await sleep(POLL_MS);
+      if (cancelled.current) return;
+      try {
+        const qs = new URLSearchParams({ runId, niche });
+        const res = await fetch(`/api/leads/scrape/poll?${qs}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || "poll failed");
+        if (data.phase === "scraping") continue;
+        if (data.phase === "error") throw new Error(data.error || "scrape failed");
+        // phase === "enrich"
+        leadIds = data.leadIds || [];
+        setSkipped(data.skipped || 0);
+        setTotal(leadIds.length);
+        onDone(); // raw leads now visible in the table
+        break;
+      } catch (e) {
+        setError(String(e instanceof Error ? e.message : e));
+        setPhase("error");
+        return;
+      }
+    }
+    if (cancelled.current) return;
+
+    if (!leadIds.length) {
+      setPhase("done");
+      return;
+    }
+
+    // 3) enrich + score in chunks
+    setPhase("enriching");
+    for (let i = 0; i < leadIds.length && !cancelled.current; i += CHUNK) {
+      const chunk = leadIds.slice(i, i + CHUNK);
+      try {
+        const res = await fetch("/api/leads/scrape/enrich", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ leadIds: chunk }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          for (const p of data.processed ?? []) {
+            if (p.hasChatbot === false) tally.current.noBot++;
+            else if (p.hasChatbot === true) tally.current.yesBot++;
+            else tally.current.unknown++;
+          }
+        }
+      } catch {
+        // skip this chunk's tally; leads remain (unscored) and are still usable
+      }
+      setDoneCount((c) => c + chunk.length);
+      onDone(); // refresh scores/flags as they fill in
+    }
+    if (!cancelled.current) setPhase("done");
+  }
+
+  const running = phase === "scraping" || phase === "enriching";
+
+  return (
+    <Modal title="Scrape leads" onClose={running ? () => {} : onClose}>
+      <p className="mb-3 text-sm text-muted">
+        Pull local businesses from Google Maps by niche + city. Each one&apos;s
+        website is checked for an existing chat widget — businesses with{" "}
+        <strong>no chatbot</strong> score hotter (they&apos;re missing what you
+        sell). New leads are deduped and AI-scored automatically.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Niche / industry">
+          <Select
+            value={niche}
+            onChange={(e) => setNiche(e.target.value)}
+            className="w-full"
+            disabled={running}
+          >
+            {INDUSTRIES.map((i) => (
+              <option key={i} value={i}>
+                {i}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="How many (max 50)">
+          <Input
+            type="number"
+            min={1}
+            max={50}
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+            disabled={running}
+          />
+        </Field>
+      </div>
+      <Field label="City / area" className="mt-3">
+        <Input
+          placeholder="e.g. Austin, TX"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          disabled={running}
+        />
+      </Field>
+
+      {phase === "scraping" && (
+        <div className="mt-3 text-sm text-muted">
+          Scraping Google Maps… this runs on Apify and can take a minute or two.
+          Leads will appear as soon as the scrape finishes.
+        </div>
+      )}
+      {phase === "enriching" && (
+        <div className="mt-3 text-sm text-muted">
+          Checking sites for chatbots & scoring… {doneCount}/{total}
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded bg-surface-2">
+            <div
+              className="h-full bg-accent transition-all"
+              style={{ width: `${total ? (doneCount / total) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {phase === "done" && (
+        <div className="mt-3 space-y-1 text-sm text-good">
+          <div>
+            Added {total} lead{total === 1 ? "" : "s"}
+            {skipped ? `, skipped ${skipped} (duplicates)` : ""}.
+          </div>
+          <div className="text-muted">
+            {tally.current.noBot} no chatbot (hot), {tally.current.yesBot} have
+            one, {tally.current.unknown} unknown.
+          </div>
+        </div>
+      )}
+      {phase === "error" && (
+        <div className="mt-3 text-sm text-hot">{error}</div>
+      )}
+
+      <div className="mt-4 flex justify-end gap-2">
+        <Btn variant="ghost" onClick={onClose} disabled={running}>
+          {phase === "done" ? "Done" : "Cancel"}
+        </Btn>
+        <Btn
+          onClick={run}
+          disabled={running || !niche.trim() || !location.trim()}
+        >
+          {phase === "scraping"
+            ? "Scraping…"
+            : phase === "enriching"
+              ? "Enriching…"
+              : phase === "done"
+                ? "Scrape again"
+                : "Scrape"}
         </Btn>
       </div>
     </Modal>

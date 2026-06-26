@@ -13,7 +13,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const runtime = "nodejs";
 
 // POST /api/leads/[id]/send — send one email from the lead's latest generated
-// sequence through the founder's Zoho mailbox, then stamp sentAt back into the
+// sequence through the founder's mailbox (Google Workspace / Gmail SMTP), then
+// stamp sentAt back into the
 // stored payload. Body: { index: number } (position in payload.emails).
 export async function POST(
   req: Request,
@@ -26,7 +27,7 @@ export async function POST(
 
   if (!mailerConfigured()) {
     return NextResponse.json(
-      { error: "Email sending isn't configured — set ZOHO_USER and ZOHO_APP_PASSWORD" },
+      { error: "Email sending isn't configured — set SMTP_USER and SMTP_PASSWORD" },
       { status: 503 },
     );
   }
@@ -68,7 +69,7 @@ export async function POST(
   const settings = await getAppSettings();
 
   // Daily send cap — a soft guard so you can't accidentally over-send and get
-  // your Zoho mailbox throttled or your domain flagged. Counts emails sent in
+  // your mailbox throttled or your domain flagged. Counts emails sent in
   // the last rolling 24h; blocks once the cap is hit.
   const cap = settings.dailySendCap;
   const sentLast24h = await emailsSentSince(new Date(Date.now() - DAY_MS));

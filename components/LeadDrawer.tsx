@@ -161,6 +161,17 @@ export function LeadDrawer({
                 onSave={(v) => patch({ website: v })}
                 link={lead.website || undefined}
               />
+              {lead.hasChatbot !== null && (
+                <DrawerField label="Website chatbot">
+                  {lead.hasChatbot === false ? (
+                    <Tag tone="hot">None — prime fit</Tag>
+                  ) : (
+                    <span className="text-sm text-muted">
+                      Present{lead.chatbotVendor ? ` · ${lead.chatbotVendor}` : ""}
+                    </span>
+                  )}
+                </DrawerField>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <EditableField label="City" value={lead.city} onSave={(v) => patch({ city: v })} />
                 <EditableField label="State" value={lead.state} onSave={(v) => patch({ state: v })} />

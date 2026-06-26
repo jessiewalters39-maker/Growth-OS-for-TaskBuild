@@ -172,30 +172,32 @@ export default async function SettingsPage() {
 
       <Card>
         <div className="mb-2 flex items-center justify-between">
-          <h2 className="font-medium">Email sending (Zoho SMTP)</h2>
+          <h2 className="font-medium">Email sending (Gmail / Workspace SMTP)</h2>
           <Tag tone={mailerReady ? "good" : "default"}>
             {mailerReady ? "configured" : "not configured"}
           </Tag>
         </div>
         <p className="text-sm text-muted">
-          Outreach emails send from your own Zoho mailbox, so they come from a
-          real inbox and replies land back in Zoho. Set these env vars:
+          Outreach emails send from your own Google Workspace mailbox, so they
+          come from a real inbox and replies land back in Gmail. Set these env
+          vars:
         </p>
         <ul className="mt-2 space-y-1 text-sm text-muted">
           <li>
-            <code className="text-fg">ZOHO_USER</code> — your mailbox, e.g.{" "}
+            <code className="text-fg">SMTP_USER</code> — your mailbox, e.g.{" "}
             <code className="text-fg">jessie@taskbuildai.com</code> (the From address)
           </li>
           <li>
-            <code className="text-fg">ZOHO_APP_PASSWORD</code> — a Zoho{" "}
-            <strong>app-specific</strong> password (Settings → Security → App Passwords)
+            <code className="text-fg">SMTP_PASSWORD</code> — a Google{" "}
+            <strong>App Password</strong> (Account → Security → App passwords;
+            requires 2-Step Verification)
           </li>
           <li>
-            <code className="text-fg">ZOHO_SMTP_HOST</code> — optional, defaults to{" "}
-            <code className="text-fg">smtp.zoho.com</code> (use the host for your data center)
+            <code className="text-fg">SMTP_HOST</code> — optional, defaults to{" "}
+            <code className="text-fg">smtp.gmail.com</code>
           </li>
           <li>
-            <code className="text-fg">ZOHO_SMTP_PORT</code> — optional, defaults to{" "}
+            <code className="text-fg">SMTP_PORT</code> — optional, defaults to{" "}
             <code className="text-fg">465</code>
           </li>
         </ul>
@@ -210,8 +212,9 @@ export default async function SettingsPage() {
         </div>
         <p className="mt-3 text-xs text-muted">
           Emails sign off with the <strong>Sender identity</strong> name above.
-          Send them one at a time from a lead&apos;s Outreach tab — Zoho enforces
-          daily sending limits and polices bulk cold mail, so keep volume modest.
+          Send them one at a time from a lead&apos;s Outreach tab — Google
+          enforces daily sending limits (~500/day personal, ~2,000/day
+          Workspace) and polices bulk cold mail, so keep volume modest.
         </p>
       </Card>
     </div>

@@ -16,20 +16,28 @@ async function resolveHostIp(host: string): Promise<string | null> {
   }
 }
 
-// Sends outreach email through the founder's own Zoho mailbox over SMTP, so
-// messages come from a real inbox (good deliverability) and replies land back in
-// Zoho. Config is env-only:
-//   ZOHO_USER          full mailbox address, e.g. jessie@taskbuildai.com  (the From)
-//   ZOHO_APP_PASSWORD  a Zoho *app-specific* password (Settings → Security → App Passwords)
-//   ZOHO_SMTP_HOST     optional, defaults to smtp.zoho.com (use smtp.zoho.eu/.in/etc per data center)
-//   ZOHO_SMTP_PORT     optional, defaults to 465 (SSL); 587 = STARTTLS
+// Sends outreach email through the founder's own mailbox over SMTP, so messages
+// come from a real inbox (good deliverability) and replies land back there.
+// Now points at Google Workspace / Gmail. Config is env-only:
+//   SMTP_USER      full mailbox address, e.g. jessie@taskbuildai.com  (the From)
+//   SMTP_PASSWORD  a Google *App Password* (Account → Security → App passwords; needs 2-Step Verification on)
+//   SMTP_HOST      optional, defaults to smtp.gmail.com
+//   SMTP_PORT      optional, defaults to 465 (SSL); 587 = STARTTLS
+//
+// The legacy ZOHO_* names are still read as a fallback so a half-migrated
+// environment (e.g. a Vercel project still holding the old keys) keeps working.
+const SMTP_USER = process.env.SMTP_USER || process.env.ZOHO_USER;
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD || process.env.ZOHO_APP_PASSWORD;
+const SMTP_HOST =
+  process.env.SMTP_HOST || process.env.ZOHO_SMTP_HOST || "smtp.gmail.com";
+const SMTP_PORT = Number(process.env.SMTP_PORT || process.env.ZOHO_SMTP_PORT || 465);
 
 export function mailerConfigured(): boolean {
-  return Boolean(process.env.ZOHO_USER && process.env.ZOHO_APP_PASSWORD);
+  return Boolean(SMTP_USER && SMTP_PASSWORD);
 }
 
 export function senderAddress(): string | undefined {
-  return process.env.ZOHO_USER;
+  return SMTP_USER;
 }
 
 export async function sendOutreachEmail(opts: {
@@ -38,16 +46,16 @@ export async function sendOutreachEmail(opts: {
   body: string;
   fromName?: string;
 }): Promise<void> {
-  const user = process.env.ZOHO_USER;
-  const pass = process.env.ZOHO_APP_PASSWORD;
+  const user = SMTP_USER;
+  const pass = SMTP_PASSWORD;
   if (!user || !pass) {
     throw new Error(
-      "Zoho SMTP not configured — set ZOHO_USER and ZOHO_APP_PASSWORD",
+      "SMTP not configured — set SMTP_USER and SMTP_PASSWORD",
     );
   }
 
-  const host = process.env.ZOHO_SMTP_HOST || "smtp.zoho.com";
-  const port = Number(process.env.ZOHO_SMTP_PORT || 465);
+  const host = SMTP_HOST;
+  const port = SMTP_PORT;
 
   // Connect by resolved IP when possible (VPN getaddrinfo workaround), keeping
   // the real hostname as the TLS servername so cert validation still passes.
@@ -57,7 +65,10 @@ export async function sendOutreachEmail(opts: {
     host: ip ?? host,
     port,
     secure: port === 465, // 465 = implicit TLS; 587 upgrades via STARTTLS
-    auth: { user, pass },
+    // Google shows App Passwords grouped as "abcd efgh ijkl mnop"; the spaces are
+    // cosmetic and must be stripped or auth fails. (App passwords never contain
+    // real spaces, so this is safe.)
+    auth: { user, pass: pass.replace(/\s+/g, "") },
     ...(ip ? { tls: { servername: host } } : {}),
   });
 

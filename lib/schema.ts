@@ -6,6 +6,7 @@ import {
   timestamp,
   jsonb,
   date,
+  boolean,
   unique,
 } from "drizzle-orm/pg-core";
 
@@ -28,8 +29,13 @@ export const leads = pgTable(
     city: text("city"),
     state: text("state"),
     industry: text("industry").notNull().default("Roofing"),
-    source: text("source").notNull().default("Manual"), // Website Form | Chat | SMS | CSV Import | Manual
+    source: text("source").notNull().default("Manual"), // Website Form | Chat | SMS | CSV Import | Scrape | Manual
     landingPage: text("landing_page"),
+    // Website chatbot signal (from scrape enrichment). null = not checked yet.
+    // For TaskBuildAI, NO chatbot is a positive buying signal (they lack what we
+    // sell), so it feeds the AI score. chatbotVendor names the widget when found.
+    hasChatbot: boolean("has_chatbot"),
+    chatbotVendor: text("chatbot_vendor"),
     status: text("status").notNull().default("new"), // new | contacted | demo_booked | customer | lost
     tier: text("tier"), // Hot | Warm | Cold (AI)
     score: integer("score"), // 1-100 (AI)
