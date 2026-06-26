@@ -55,7 +55,7 @@ export function OutreachTab({ lead }: { lead: Lead }) {
     }
   }
 
-  // Send one email via Zoho, then reflect the sentAt stamp in local state.
+  // Send one email via SMTP, then reflect the sentAt stamp in local state.
   async function sendEmail(
     index: number,
   ): Promise<{ ok: boolean; error?: string }> {
