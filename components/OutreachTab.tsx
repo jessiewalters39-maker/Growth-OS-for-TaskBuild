@@ -46,12 +46,13 @@ export function OutreachTab({ lead }: { lead: Lead }) {
     setError("");
     const res = await fetch(`/api/leads/${lead.id}/sequence`, { method: "POST" });
     setGenerating(false);
+    const data = await res.json().catch(() => ({}));
     if (res.ok) {
-      const data = await res.json();
       setPayload(data.payload);
       setCreatedAt(data.createdAt);
     } else {
-      setError("Generation failed — check ANTHROPIC_API_KEY");
+      // Surface the real server error instead of always blaming the API key.
+      setError(data?.error || "Generation failed — please try again");
     }
   }
 

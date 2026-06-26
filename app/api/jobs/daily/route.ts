@@ -7,6 +7,11 @@ import { generateWeeklyCmo } from "@/lib/cmo";
 import { setSetting } from "@/lib/settings";
 import { retry } from "@/lib/retry";
 
+// Runs several external syncs plus a weekly AI CMO report — the longest route.
+// Claim the full Hobby budget so it isn't cut off by the short platform default.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 // GET /api/jobs/daily — the single daily cron. Protected by CRON_SECRET
 // (Authorization: Bearer <secret>). Each step is isolated in try/catch so one
 // integration failing never blocks the others. Vercel Cron hits this once a day
