@@ -15,6 +15,10 @@ function leadFacts(lead: Lead): string {
     lead.email && `Email: ${lead.email}`,
     lead.phone && `Phone: ${lead.phone}`,
     lead.website && `Website: ${lead.website}`,
+    lead.hasChatbot === false &&
+      `Website chatbot: NONE detected — the site has no chat/AI widget (prime fit: they lack what TaskBuildAI provides)`,
+    lead.hasChatbot === true &&
+      `Website chatbot: present${lead.chatbotVendor ? ` (${lead.chatbotVendor})` : ""} — they already run some chat tooling`,
     lead.source && `Lead source: ${lead.source}`,
     lead.landingPage && `Landing page: ${lead.landingPage}`,
   ]
@@ -36,6 +40,7 @@ Score this lead's fit as a prospect for that product. Weigh:
 - Industry fit: does this business type rely on inbound phone calls and lose money to missed calls?
 - Contactability: do we have an email and/or phone to reach them?
 - Location fit: how well does their location match the target market above?
+- Chatbot signal (weigh heavily when present): a business whose website has NO chat/AI widget is missing exactly what we sell — treat "no chatbot detected" as a strong positive buying signal and lean toward Hot. A business that already runs a chat widget has lower urgency for our website-chat angle (though missed-call capture may still apply), so temper the score. If the chatbot status is unknown, ignore this factor.
 
 Lead:
 ${leadFacts(lead)}

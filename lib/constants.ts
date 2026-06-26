@@ -35,6 +35,7 @@ export const LEAD_SOURCES = [
   "Chat",
   "SMS",
   "CSV Import",
+  "Scrape",
 ] as const;
 
 export const STATUS_LABELS: Record<string, string> = {

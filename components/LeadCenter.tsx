@@ -46,6 +46,7 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
   const [selected, setSelected] = useState<Lead | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showScrape, setShowScrape] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,6 +82,9 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
         <div className="flex gap-2">
           <Btn variant="ghost" onClick={() => setShowImport(true)}>
             Import CSV
+          </Btn>
+          <Btn variant="ghost" onClick={() => setShowScrape(true)}>
+            Scrape leads
           </Btn>
           <Btn onClick={() => setShowAdd(true)}>+ Add lead</Btn>
         </div>
@@ -157,7 +161,14 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
                 onClick={() => setSelected(l)}
                 className="cursor-pointer transition-colors hover:bg-surface-2/60"
               >
-                <Td className="font-medium">{l.company}</Td>
+                <Td className="font-medium">
+                  {l.company}
+                  {l.hasChatbot === false && (
+                    <Tag tone="hot" className="ml-2 align-middle text-[10px]">
+                      No chatbot
+                    </Tag>
+                  )}
+                </Td>
                 <Td className="text-muted">
                   {l.owner || l.email || l.phone || "—"}
                 </Td>
@@ -213,6 +224,13 @@ export function LeadCenter({ defaultIndustry }: { defaultIndustry: string }) {
       {showImport && (
         <ImportModal
           onClose={() => setShowImport(false)}
+          onDone={() => load()}
+        />
+      )}
+      {showScrape && (
+        <ScrapeModal
+          defaultIndustry={defaultIndustry}
+          onClose={() => setShowScrape(false)}
           onDone={() => load()}
         />
       )}
@@ -411,6 +429,117 @@ function ImportModal({
         </Btn>
         <Btn onClick={submit} disabled={busy || !csv.trim()}>
           {busy ? "Importing…" : "Import"}
+        </Btn>
+      </div>
+    </Modal>
+  );
+}
+
+// ── Scrape leads modal ────────────────────────────────────────────────────
+type ScrapeResult = {
+  found: number;
+  inserted: number;
+  skipped: number;
+  withoutChatbot: number;
+  withChatbot: number;
+  unknownChatbot: number;
+};
+
+function ScrapeModal({
+  defaultIndustry,
+  onClose,
+  onDone,
+}: {
+  defaultIndustry: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [niche, setNiche] = useState(defaultIndustry);
+  const [location, setLocation] = useState("");
+  const [limit, setLimit] = useState(20);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ScrapeResult | null>(null);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setBusy(true);
+    setError("");
+    setResult(null);
+    const res = await fetch("/api/leads/scrape", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ niche, location, limit }),
+    });
+    setBusy(false);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setResult(data);
+      onDone();
+    } else {
+      setError(data?.error || "Scrape failed");
+    }
+  }
+
+  return (
+    <Modal title="Scrape leads" onClose={onClose}>
+      <p className="mb-3 text-sm text-muted">
+        Pull local businesses from Google Maps by niche + city. Each one&apos;s
+        website is checked for an existing chat widget — businesses with{" "}
+        <strong>no chatbot</strong> score hotter (they&apos;re missing what you
+        sell). New leads are deduped and AI-scored automatically.
+      </p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Niche / industry">
+          <Select value={niche} onChange={(e) => setNiche(e.target.value)} className="w-full">
+            {INDUSTRIES.map((i) => (
+              <option key={i} value={i}>
+                {i}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="How many (max 50)">
+          <Input
+            type="number"
+            min={1}
+            max={50}
+            value={limit}
+            onChange={(e) => setLimit(Number(e.target.value))}
+          />
+        </Field>
+      </div>
+      <Field label="City / area" className="mt-3">
+        <Input
+          placeholder="e.g. Austin, TX"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+        />
+      </Field>
+      {busy && (
+        <div className="mt-3 text-sm text-muted">
+          Scraping + checking each site for chatbots… this can take a minute or
+          two. Keep this open.
+        </div>
+      )}
+      {result && (
+        <div className="mt-3 space-y-1 text-sm text-good">
+          <div>
+            Found {result.found}, added {result.inserted}, skipped{" "}
+            {result.skipped} (duplicates).
+          </div>
+          <div className="text-muted">
+            {result.withoutChatbot} have no chatbot (hot), {result.withChatbot}{" "}
+            already have one, {result.unknownChatbot} unknown.
+          </div>
+        </div>
+      )}
+      {error && <div className="mt-3 text-sm text-hot">{error}</div>}
+      <div className="mt-4 flex justify-end gap-2">
+        <Btn variant="ghost" onClick={onClose}>
+          {result ? "Done" : "Cancel"}
+        </Btn>
+        <Btn onClick={submit} disabled={busy || !niche.trim() || !location.trim()}>
+          {busy ? "Scraping…" : "Scrape"}
         </Btn>
       </div>
     </Modal>
