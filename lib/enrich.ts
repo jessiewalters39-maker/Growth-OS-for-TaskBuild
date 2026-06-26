@@ -101,18 +101,24 @@ function hostOf(url: string): string | null {
   }
 }
 
-// Fetch the homepage and derive the signals. Best-effort: any failure (timeout,
-// block, DNS) yields hasChatbot=null (unknown) rather than throwing.
-export async function enrichWebsite(
-  website: string | null,
-  timeoutMs = 8000,
-): Promise<Enrichment> {
-  if (!website) return { hasChatbot: null, chatbotVendor: null, email: null };
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
 
-  // Normalize to an absolute URL.
-  let url = website.trim();
-  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+// Contact-ish pages where small businesses usually list an email when the
+// homepage doesn't. Tried in order, stopping at the first email found.
+const CONTACT_PATHS = ["/contact", "/contact-us", "/about"];
 
+// Fetch one page's HTML (best-effort). Returns the body and the final URL after
+// redirects, or null on any failure (timeout, block, non-2xx, DNS).
+async function fetchHtml(
+  url: string,
+  timeoutMs: number,
+): Promise<{ html: string; finalUrl: string } | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -126,19 +132,52 @@ export async function enrichWebsite(
         accept: "text/html,application/xhtml+xml",
       },
     });
-    if (!res.ok) return { hasChatbot: null, chatbotVendor: null, email: null };
+    if (!res.ok) return null;
     const html = (await res.text()).slice(0, 600_000); // cap huge pages
-    const vendor = detectVendor(html);
-    return {
-      hasChatbot: vendor !== null,
-      chatbotVendor: vendor,
-      email: extractEmail(html, hostOf(res.url || url)),
-    };
+    return { html, finalUrl: res.url || url };
   } catch {
-    return { hasChatbot: null, chatbotVendor: null, email: null };
+    return null;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Fetch the homepage for the chatbot signal, then (only if no email turned up)
+// check a couple of contact pages — that's where most local businesses bury
+// their address. Best-effort: a failed homepage fetch yields hasChatbot=null.
+export async function enrichWebsite(
+  website: string | null,
+  timeoutMs = 8000,
+): Promise<Enrichment> {
+  if (!website) return { hasChatbot: null, chatbotVendor: null, email: null };
+
+  // Normalize to an absolute URL.
+  let url = website.trim();
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+
+  const home = await fetchHtml(url, timeoutMs);
+  if (!home) return { hasChatbot: null, chatbotVendor: null, email: null };
+
+  const vendor = detectVendor(home.html);
+  const host = hostOf(home.finalUrl);
+  let email = extractEmail(home.html, host);
+
+  // No email on the homepage → try contact/about pages (shorter timeout each,
+  // bounded so the per-lead budget stays well under the function limit).
+  if (!email) {
+    const origin = originOf(home.finalUrl);
+    if (origin) {
+      for (const path of CONTACT_PATHS) {
+        const page = await fetchHtml(origin + path, 4000);
+        if (page) {
+          email = extractEmail(page.html, host);
+          if (email) break;
+        }
+      }
+    }
+  }
+
+  return { hasChatbot: vendor !== null, chatbotVendor: vendor, email };
 }
 
 // Run enrichment over many sites with a small concurrency cap so a scrape of
