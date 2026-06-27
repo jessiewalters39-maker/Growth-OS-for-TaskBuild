@@ -15,6 +15,13 @@
       "when": 1782501480800,
       "tag": "0001_parched_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782521116536,
+      "tag": "0002_fat_darkstar",
+      "breakpoints": true
     }
   ]
 }

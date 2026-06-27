@@ -185,6 +185,13 @@ function MessageCard({
       ? `sms:${phone}?body=${encodeURIComponent(m.body)}`
       : null;
 
+  // LinkedIn is manual-only (ToS): copy the message, open the profile, you paste.
+  const linkedinUrl = channel === "linkedin" ? lead.linkedinUrl : null;
+  function openLinkedIn() {
+    navigator.clipboard?.writeText(m.body).catch(() => {});
+    if (linkedinUrl) window.open(linkedinUrl, "_blank", "noopener,noreferrer");
+  }
+
   // For email copy, include the subject line so a paste carries both.
   const copyText = m.subject ? `Subject: ${m.subject}\n\n${m.body}` : m.body;
 
@@ -234,6 +241,15 @@ function MessageCard({
             >
               Text
             </a>
+          )}
+          {linkedinUrl && (
+            <button
+              onClick={openLinkedIn}
+              title="Copies this message and opens their LinkedIn — paste & send"
+              className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent-2"
+            >
+              Open LinkedIn
+            </button>
           )}
           <CopyButton text={copyText} />
         </div>
