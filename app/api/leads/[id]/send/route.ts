@@ -6,6 +6,7 @@ import type { SequencePayload } from "@/lib/prompts";
 import { getAppSettings } from "@/lib/settings";
 import { mailerConfigured, sendOutreachEmail } from "@/lib/mailer";
 import { emailsSentSince } from "@/lib/sends";
+import { markContacted } from "@/lib/match";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -107,11 +108,15 @@ export async function POST(
     .set({ payload })
     .where(eq(sequences.id, row.id));
 
+  // First touch moves the lead New → Contacted (returns the row only if changed).
+  const updatedLead = await markContacted(id);
+
   const count = sentLast24h + 1;
   return NextResponse.json({
     sentAt,
     count,
     cap,
     remaining: Math.max(0, cap - count),
+    lead: updatedLead,
   });
 }

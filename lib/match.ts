@@ -65,6 +65,18 @@ export async function promoteToDemoBooked(leadId: number): Promise<void> {
     );
 }
 
+// Bump a lead to "contacted" the first time any outreach touch is sent. Only
+// promotes from "new" (never downgrades a further-along stage). Returns the
+// updated row when it actually changed, else null — so callers can tell the UI.
+export async function markContacted(leadId: number): Promise<Lead | null> {
+  const [row] = await db
+    .update(leads)
+    .set({ status: "contacted", updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), eq(leads.status, "new")))
+    .returning();
+  return row ?? null;
+}
+
 export async function promoteToCustomer(leadId: number): Promise<void> {
   await db
     .update(leads)

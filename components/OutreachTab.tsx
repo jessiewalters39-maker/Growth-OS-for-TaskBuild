@@ -13,7 +13,25 @@ function dialable(phone: string | null): string | null {
   return cleaned.length >= 7 ? cleaned : null;
 }
 
-export function OutreachTab({ lead }: { lead: Lead }) {
+// Set/clear the sentAt on one message of a channel, returning a new payload.
+function stampLocal(
+  prev: SequencePayload | null,
+  channel: "sms" | "linkedin",
+  index: number,
+  sentAt: string | undefined,
+): SequencePayload | null {
+  if (!prev) return prev;
+  const list = prev[channel].map((m, i) => (i === index ? { ...m, sentAt } : m));
+  return { ...prev, [channel]: list };
+}
+
+export function OutreachTab({
+  lead,
+  onLeadChange,
+}: {
+  lead: Lead;
+  onLeadChange?: (lead: Lead) => void;
+}) {
   const [payload, setPayload] = useState<SequencePayload | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +95,7 @@ export function OutreachTab({ lead }: { lead: Lead }) {
       if (typeof data.remaining === "number" && typeof data.cap === "number") {
         setQuota({ remaining: data.remaining, cap: data.cap });
       }
+      if (data.lead) onLeadChange?.(data.lead); // New → Contacted bump
       return { ok: true };
     }
     // On a cap block (429) the body still carries cap/remaining — show it.
@@ -84,6 +103,30 @@ export function OutreachTab({ lead }: { lead: Lead }) {
       setQuota({ remaining: data.remaining, cap: data.cap });
     }
     return { ok: false, error: data.error || "Send failed" };
+  }
+
+  // Manually mark an SMS/LinkedIn touch sent (or clear it, for undo). These
+  // channels are sent by hand, so the app records the stamp when you act on them.
+  async function markTouch(
+    channel: "sms" | "linkedin",
+    index: number,
+    sent: boolean,
+  ) {
+    // Optimistic: reflect immediately, then reconcile with the server's stamp.
+    setPayload((prev) => stampLocal(prev, channel, index, sent ? "…" : undefined));
+    const res = await fetch(`/api/leads/${lead.id}/sequence/mark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel, index, sent }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setPayload((prev) => stampLocal(prev, channel, index, data.sentAt ?? undefined));
+      if (data.lead) onLeadChange?.(data.lead); // New → Contacted bump
+    } else {
+      // Revert the optimistic change on failure.
+      setPayload((prev) => stampLocal(prev, channel, index, sent ? undefined : "…"));
+    }
   }
 
   if (loading) return <div className="text-sm text-muted">Loading…</div>;
@@ -132,12 +175,26 @@ export function OutreachTab({ lead }: { lead: Lead }) {
           </Section>
           <Section title="SMS">
             {payload.sms?.map((m, i) => (
-              <MessageCard key={i} m={m} channel="sms" lead={lead} />
+              <MessageCard
+                key={i}
+                m={m}
+                channel="sms"
+                lead={lead}
+                index={i}
+                onMark={markTouch}
+              />
             ))}
           </Section>
           <Section title="LinkedIn">
             {payload.linkedin?.map((m, i) => (
-              <MessageCard key={i} m={m} channel="linkedin" lead={lead} />
+              <MessageCard
+                key={i}
+                m={m}
+                channel="linkedin"
+                lead={lead}
+                index={i}
+                onMark={markTouch}
+              />
             ))}
           </Section>
         </div>
@@ -169,15 +226,30 @@ function MessageCard({
   lead,
   index,
   onSend,
+  onMark,
 }: {
   m: SequenceMessage;
   channel: "email" | "sms" | "linkedin";
   lead: Lead;
   index?: number;
   onSend?: (index: number) => Promise<{ ok: boolean; error?: string }>;
+  onMark?: (channel: "sms" | "linkedin", index: number, sent: boolean) => void;
 }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState("");
+
+  // SMS/LinkedIn are sent by hand — acting on them auto-records the sent stamp.
+  const manualChannel = channel === "sms" || channel === "linkedin";
+  function autoMark() {
+    if (manualChannel && onMark && index !== undefined && !m.sentAt) {
+      onMark(channel, index, true);
+    }
+  }
+  function undoMark() {
+    if (manualChannel && onMark && index !== undefined) {
+      onMark(channel, index, false);
+    }
+  }
 
   const phone = dialable(lead.phone);
   const smsHref =
@@ -190,6 +262,7 @@ function MessageCard({
   function openLinkedIn() {
     navigator.clipboard?.writeText(m.body).catch(() => {});
     if (linkedinUrl) window.open(linkedinUrl, "_blank", "noopener,noreferrer");
+    autoMark();
   }
 
   // For email copy, include the subject line so a paste carries both.
@@ -213,9 +286,23 @@ function MessageCard({
         <Tag tone="accent">{m.label}</Tag>
         <div className="flex items-center gap-1.5">
           {m.sentAt ? (
-            <Tag tone="good">
-              Sent · {new Date(m.sentAt).toLocaleDateString()}
-            </Tag>
+            manualChannel ? (
+              <button
+                onClick={undoMark}
+                title="Click to undo — mark as not sent"
+                className="rounded-md border border-good/30 bg-good/15 px-2 py-0.5 text-xs font-medium text-good hover:bg-good/25"
+              >
+                Sent
+                {m.sentAt === "…"
+                  ? "…"
+                  : ` · ${new Date(m.sentAt).toLocaleDateString()}`}{" "}
+                ✕
+              </button>
+            ) : (
+              <Tag tone="good">
+                Sent · {new Date(m.sentAt).toLocaleDateString()}
+              </Tag>
+            )
           ) : null}
           {channel === "email" &&
             (canSend ? (
@@ -237,6 +324,7 @@ function MessageCard({
           {smsHref && (
             <a
               href={smsHref}
+              onClick={autoMark}
               className="rounded-lg bg-accent px-2.5 py-1 text-xs font-medium text-white hover:bg-accent-2"
             >
               Text
