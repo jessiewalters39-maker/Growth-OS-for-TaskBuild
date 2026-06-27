@@ -216,7 +216,7 @@ export function LeadDrawer({
               </div>
             </div>
           ) : (
-            <OutreachTab lead={lead} />
+            <OutreachTab lead={lead} onLeadChange={onChange} />
           )}
         </div>
       </div>
