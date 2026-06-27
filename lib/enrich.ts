@@ -8,10 +8,25 @@
 // widget injected via an obscure tag manager can be missed — but it reliably
 // catches the mainstream vendors below.
 
+export type Socials = {
+  linkedin: string | null;
+  facebook: string | null;
+  instagram: string | null;
+  twitter: string | null;
+};
+
 export type Enrichment = {
   hasChatbot: boolean | null; // null = couldn't fetch the site (unknown)
   chatbotVendor: string | null;
   email: string | null;
+  socials: Socials;
+};
+
+const EMPTY_SOCIALS: Socials = {
+  linkedin: null,
+  facebook: null,
+  instagram: null,
+  twitter: null,
 };
 
 // vendor name → substrings that appear in the page when that widget is present.
@@ -93,6 +108,37 @@ function extractEmail(html: string, siteHost: string | null): string | null {
   return emails[0];
 }
 
+// Pull the business's social profile URLs out of the page's links. We take the
+// first link per network, skipping share/intent/sharer URLs (which are
+// "share this page" buttons, not the business's own profile) and bare-root
+// links like facebook.com with no handle.
+const SOCIAL_PATTERNS: Array<[keyof Socials, RegExp]> = [
+  ["linkedin", /https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(?:company|in|pub)\/[A-Za-z0-9._%\-]+/i],
+  ["facebook", /https?:\/\/(?:www\.|m\.|web\.)?facebook\.com\/(?!sharer|share|dialog|plugins|tr\b)[A-Za-z0-9.\-]+/i],
+  ["instagram", /https?:\/\/(?:www\.)?instagram\.com\/(?!p\/|reel\/|explore\/)[A-Za-z0-9._]+/i],
+  ["twitter", /https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/(?!intent|share|home\b)[A-Za-z0-9_]+/i],
+];
+
+function extractSocials(html: string): Socials {
+  const out: Socials = { linkedin: null, facebook: null, instagram: null, twitter: null };
+  for (const [network, re] of SOCIAL_PATTERNS) {
+    const m = html.match(re);
+    if (m) out[network] = m[0].replace(/["'\\].*$/, "").replace(/\/$/, "");
+  }
+  return out;
+}
+
+// Merge socials, keeping the first non-null per network (homepage wins over
+// later contact pages).
+function mergeSocials(base: Socials, next: Socials): Socials {
+  return {
+    linkedin: base.linkedin ?? next.linkedin,
+    facebook: base.facebook ?? next.facebook,
+    instagram: base.instagram ?? next.instagram,
+    twitter: base.twitter ?? next.twitter,
+  };
+}
+
 function hostOf(url: string): string | null {
   try {
     return new URL(url).hostname.toLowerCase();
@@ -149,35 +195,40 @@ export async function enrichWebsite(
   website: string | null,
   timeoutMs = 8000,
 ): Promise<Enrichment> {
-  if (!website) return { hasChatbot: null, chatbotVendor: null, email: null };
+  if (!website)
+    return { hasChatbot: null, chatbotVendor: null, email: null, socials: EMPTY_SOCIALS };
 
   // Normalize to an absolute URL.
   let url = website.trim();
   if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 
   const home = await fetchHtml(url, timeoutMs);
-  if (!home) return { hasChatbot: null, chatbotVendor: null, email: null };
+  if (!home)
+    return { hasChatbot: null, chatbotVendor: null, email: null, socials: EMPTY_SOCIALS };
 
   const vendor = detectVendor(home.html);
   const host = hostOf(home.finalUrl);
   let email = extractEmail(home.html, host);
+  let socials = extractSocials(home.html);
 
   // No email on the homepage → try contact/about pages (shorter timeout each,
-  // bounded so the per-lead budget stays well under the function limit).
+  // bounded so the per-lead budget stays well under the function limit). We also
+  // merge any socials those pages carry — no extra fetches beyond the email hunt.
   if (!email) {
     const origin = originOf(home.finalUrl);
     if (origin) {
       for (const path of CONTACT_PATHS) {
         const page = await fetchHtml(origin + path, 4000);
         if (page) {
-          email = extractEmail(page.html, host);
+          if (!email) email = extractEmail(page.html, host);
+          socials = mergeSocials(socials, extractSocials(page.html));
           if (email) break;
         }
       }
     }
   }
 
-  return { hasChatbot: vendor !== null, chatbotVendor: vendor, email };
+  return { hasChatbot: vendor !== null, chatbotVendor: vendor, email, socials };
 }
 
 // Run enrichment over many sites with a small concurrency cap so a scrape of

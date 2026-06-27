@@ -176,6 +176,33 @@ export function LeadDrawer({
                 <EditableField label="City" value={lead.city} onSave={(v) => patch({ city: v })} />
                 <EditableField label="State" value={lead.state} onSave={(v) => patch({ state: v })} />
               </div>
+              {(lead.linkedinUrl ||
+                lead.facebookUrl ||
+                lead.instagramUrl ||
+                lead.twitterUrl) && (
+                <DrawerField label="Socials (open to message manually)">
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    {([
+                      ["LinkedIn", lead.linkedinUrl],
+                      ["Facebook", lead.facebookUrl],
+                      ["Instagram", lead.instagramUrl],
+                      ["X", lead.twitterUrl],
+                    ] as const).map(([name, url]) =>
+                      url ? (
+                        <a
+                          key={name}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-md border border-line px-2 py-0.5 text-accent-2 hover:bg-surface-2"
+                        >
+                          {name} ↗
+                        </a>
+                      ) : null,
+                    )}
+                  </div>
+                </DrawerField>
+              )}
               {lead.landingPage && (
                 <DrawerField label="Landing page">
                   <div className="text-sm">{lead.landingPage}</div>

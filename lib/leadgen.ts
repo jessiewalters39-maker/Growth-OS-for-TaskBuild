@@ -98,6 +98,10 @@ async function enrichAndScoreOne(
     hasChatbot: e.hasChatbot,
     chatbotVendor: e.chatbotVendor,
     email,
+    linkedinUrl: lead.linkedinUrl ?? e.socials.linkedin,
+    facebookUrl: lead.facebookUrl ?? e.socials.facebook,
+    instagramUrl: lead.instagramUrl ?? e.socials.instagram,
+    twitterUrl: lead.twitterUrl ?? e.socials.twitter,
   };
   await db
     .update(leads)
@@ -105,6 +109,11 @@ async function enrichAndScoreOne(
       hasChatbot: e.hasChatbot,
       chatbotVendor: e.chatbotVendor,
       email,
+      // Only fill social URLs we don't already have.
+      linkedinUrl: lead.linkedinUrl ?? e.socials.linkedin,
+      facebookUrl: lead.facebookUrl ?? e.socials.facebook,
+      instagramUrl: lead.instagramUrl ?? e.socials.instagram,
+      twitterUrl: lead.twitterUrl ?? e.socials.twitter,
       updatedAt: new Date(),
     })
     .where(eq(leads.id, lead.id));

@@ -36,6 +36,13 @@ export const leads = pgTable(
     // sell), so it feeds the AI score. chatbotVendor names the widget when found.
     hasChatbot: boolean("has_chatbot"),
     chatbotVendor: text("chatbot_vendor"),
+    // Social profile URLs pulled from the business's website during enrichment.
+    // Used for Tier-0 manual outreach (open-the-page + copy-the-message buttons),
+    // not automation. Usually the company page, not the owner's personal profile.
+    linkedinUrl: text("linkedin_url"),
+    facebookUrl: text("facebook_url"),
+    instagramUrl: text("instagram_url"),
+    twitterUrl: text("twitter_url"),
     status: text("status").notNull().default("new"), // new | contacted | demo_booked | customer | lost
     tier: text("tier"), // Hot | Warm | Cold (AI)
     score: integer("score"), // 1-100 (AI)
