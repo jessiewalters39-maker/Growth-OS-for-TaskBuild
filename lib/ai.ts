@@ -2,7 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 // All AI calls go through this one file. `askJson` enforces JSON-only output
 // and parses defensively. Token caps are passed per use case by the caller
-// (score: 300, sequence: 1500, CMO: 2000).
+// (score: 300, sequence: 4000, CMO: 2000). Caps must clear the JSON's real size
+// or the response is truncated mid-object and fails to parse.
 export const AI_MODEL = "claude-sonnet-4-6";
 
 let client: Anthropic | null = null;

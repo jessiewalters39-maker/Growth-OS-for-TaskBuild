@@ -6,6 +6,10 @@ import { askJson } from "@/lib/ai";
 import { scorePrompt, type ScoreResult } from "@/lib/prompts";
 import { getAppSettings } from "@/lib/settings";
 
+// AI call (Node runtime). Fast, but claim headroom over the platform default.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 // POST /api/leads/[id]/score — AI fit score against the current target market.
 export async function POST(
   _req: Request,

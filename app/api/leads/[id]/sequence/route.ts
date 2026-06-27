@@ -6,6 +6,11 @@ import { askJson } from "@/lib/ai";
 import { sequencePrompt, type SequencePayload } from "@/lib/prompts";
 import { getAppSettings } from "@/lib/settings";
 
+// Anthropic SDK needs the Node runtime; generation can take ~30s, so claim the
+// full Hobby budget rather than the short platform default.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 // GET /api/leads/[id]/sequence — latest saved sequence (or {payload:null}).
 export async function GET(
   _req: Request,
@@ -42,7 +47,9 @@ export async function POST(
   const settings = await getAppSettings();
   let payload: SequencePayload;
   try {
-    payload = await askJson<SequencePayload>(sequencePrompt(lead, settings), 1500);
+    // 9 messages (5 emails + 2 SMS + 2 LinkedIn) as JSON runs ~1.7k tokens;
+    // 1500 truncated it mid-JSON and broke parsing. 4000 gives headroom.
+    payload = await askJson<SequencePayload>(sequencePrompt(lead, settings), 4000);
   } catch (e) {
     return NextResponse.json(
       { error: `sequence generation failed: ${String(e)}` },
