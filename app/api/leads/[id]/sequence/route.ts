@@ -47,9 +47,11 @@ export async function POST(
   const settings = await getAppSettings();
   let payload: SequencePayload;
   try {
-    // 9 messages (5 emails + 2 SMS + 2 LinkedIn) as JSON runs ~1.7k tokens;
-    // 1500 truncated it mid-JSON and broke parsing. 4000 gives headroom.
-    payload = await askJson<SequencePayload>(sequencePrompt(lead, settings), 4000);
+    // 9 messages (5 emails + 2 SMS + 2 LinkedIn). A verbose, fully personalized
+    // campaign can run several thousand tokens of JSON, and a truncated response
+    // fails to parse — so give a generous cap here. askJson also retries at
+    // double the budget if the model still hits the ceiling.
+    payload = await askJson<SequencePayload>(sequencePrompt(lead, settings), 8000);
   } catch (e) {
     return NextResponse.json(
       { error: `sequence generation failed: ${String(e)}` },
