@@ -9,6 +9,11 @@ export type AppSettings = {
   dailySendCap: number;
   bookingUrl: string;
   websiteUrl: string;
+  // Plain-text block appended to the bottom of every outreach email on send.
+  // A Gmail signature can't apply here — it's a Gmail compose-window feature and
+  // this app sends over SMTP, which never touches that UI — so we own the
+  // signature ourselves. Kept plain text on purpose (see mailer.ts).
+  signature: string;
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -18,6 +23,16 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dailySendCap: 30,
   bookingUrl: "https://cal.com/taskbuildai/automation-audit",
   websiteUrl: "https://www.taskbuildai.com/",
+  signature:
+    "Jessie Walters\n" +
+    "Founder | TaskBuild\n" +
+    "📧 jessie@taskbuildai.com\n" +
+    "🌐 https://www.taskbuildai.com\n" +
+    "📅 Book a Demo: https://cal.com/taskbuildai/automation-audit\n" +
+    "\n" +
+    "AI Departments for Service Businesses\n" +
+    "\n" +
+    "Front Office • Operations • Growth",
 };
 
 // Read a single setting value, JSON-typed. Returns fallback on any failure
@@ -38,16 +53,32 @@ export async function getSetting<T>(key: string, fallback: T): Promise<T> {
 
 // Industry + location mode, injected into every AI prompt and the top bar.
 export async function getAppSettings(): Promise<AppSettings> {
-  const [industry, location, senderName, dailySendCap, bookingUrl, websiteUrl] =
-    await Promise.all([
-      getSetting<string>("industry", DEFAULT_SETTINGS.industry),
-      getSetting<string>("location", DEFAULT_SETTINGS.location),
-      getSetting<string>("sender_name", DEFAULT_SETTINGS.senderName),
-      getSetting<number>("daily_send_cap", DEFAULT_SETTINGS.dailySendCap),
-      getSetting<string>("booking_url", DEFAULT_SETTINGS.bookingUrl),
-      getSetting<string>("website_url", DEFAULT_SETTINGS.websiteUrl),
-    ]);
-  return { industry, location, senderName, dailySendCap, bookingUrl, websiteUrl };
+  const [
+    industry,
+    location,
+    senderName,
+    dailySendCap,
+    bookingUrl,
+    websiteUrl,
+    signature,
+  ] = await Promise.all([
+    getSetting<string>("industry", DEFAULT_SETTINGS.industry),
+    getSetting<string>("location", DEFAULT_SETTINGS.location),
+    getSetting<string>("sender_name", DEFAULT_SETTINGS.senderName),
+    getSetting<number>("daily_send_cap", DEFAULT_SETTINGS.dailySendCap),
+    getSetting<string>("booking_url", DEFAULT_SETTINGS.bookingUrl),
+    getSetting<string>("website_url", DEFAULT_SETTINGS.websiteUrl),
+    getSetting<string>("signature", DEFAULT_SETTINGS.signature),
+  ]);
+  return {
+    industry,
+    location,
+    senderName,
+    dailySendCap,
+    bookingUrl,
+    websiteUrl,
+    signature,
+  };
 }
 
 export async function setSetting(key: string, value: unknown): Promise<void> {

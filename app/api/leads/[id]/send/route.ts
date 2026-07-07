@@ -92,6 +92,7 @@ export async function POST(
       subject: msg.subject ?? "",
       body: msg.body,
       fromName: settings.senderName,
+      signature: settings.signature,
     });
   } catch (e) {
     return NextResponse.json(

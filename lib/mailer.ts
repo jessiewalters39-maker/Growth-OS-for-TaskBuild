@@ -45,6 +45,10 @@ export async function sendOutreachEmail(opts: {
   subject: string;
   body: string;
   fromName?: string;
+  // Plain-text signature block appended below the body. Gmail's own signature
+  // never applies to SMTP mail (it's a compose-window feature), so we append our
+  // own here — separated by a blank line so it reads like a normal sign-off.
+  signature?: string;
 }): Promise<void> {
   const user = SMTP_USER;
   const pass = SMTP_PASSWORD;
@@ -72,12 +76,15 @@ export async function sendOutreachEmail(opts: {
     ...(ip ? { tls: { servername: host } } : {}),
   });
 
+  const sig = opts.signature?.trim();
+  const text = sig ? `${opts.body.trimEnd()}\n\n${sig}` : opts.body;
+
   await transport.sendMail({
     from: opts.fromName ? `"${opts.fromName}" <${user}>` : user,
     to: opts.to,
     subject: opts.subject,
     // Plain text on purpose: cold outreach lands better and reads as a real
     // person typing, not a marketing template.
-    text: opts.body,
+    text,
   });
 }

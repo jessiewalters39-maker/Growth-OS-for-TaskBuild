@@ -21,6 +21,8 @@ export async function POST(req: Request) {
     writes.push(setSetting("booking_url", body.booking_url.trim()));
   if (typeof body.website_url === "string")
     writes.push(setSetting("website_url", body.website_url.trim()));
+  if (typeof body.signature === "string")
+    writes.push(setSetting("signature", body.signature));
   try {
     await Promise.all(writes);
   } catch {

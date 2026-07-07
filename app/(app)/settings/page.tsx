@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { Card, Tag } from "@/components/ui";
 import { CopyButton } from "@/components/CopyButton";
 import { SenderNameForm } from "@/components/SenderNameForm";
+import { SignatureForm } from "@/components/SignatureForm";
 import { DailyCapForm } from "@/components/DailyCapForm";
 import { OutreachLinksForm } from "@/components/OutreachLinksForm";
 import { getAppSettings, getSetting } from "@/lib/settings";
@@ -21,8 +22,15 @@ function ago(iso?: string): string {
 }
 
 export default async function SettingsPage() {
-  const { industry, location, senderName, dailySendCap, bookingUrl, websiteUrl } =
-    await getAppSettings();
+  const {
+    industry,
+    location,
+    senderName,
+    dailySendCap,
+    bookingUrl,
+    websiteUrl,
+    signature,
+  } = await getAppSettings();
   const mailerReady = mailerConfigured();
   const [lastCal, lastStripe, lastGsc] = await Promise.all([
     getSetting<SyncInfo>("last_cal_sync", null),
@@ -76,6 +84,18 @@ export default async function SettingsPage() {
           with. Pinning it here stops the AI from inventing different names.
         </p>
         <SenderNameForm initial={senderName} />
+
+        <div className="mt-4 border-t border-line pt-3">
+          <div className="text-sm font-medium">Email signature</div>
+          <p className="mb-1 mt-1 text-xs text-muted">
+            Appended to the bottom of every outreach email when you send it. Your
+            Gmail signature does <strong>not</strong> apply here — that&apos;s a
+            Gmail compose-window feature, and these emails go out over SMTP, which
+            never touches it. Kept plain text so cold mail reads like a real person
+            and lands in the inbox.
+          </p>
+          <SignatureForm initial={signature} />
+        </div>
       </Card>
 
       <Card>
